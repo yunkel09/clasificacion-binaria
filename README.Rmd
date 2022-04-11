@@ -20,8 +20,8 @@ options(tibble.print_min = 5, tibble.print_max = 5)
 # Clasificación Binaria <img src='figures/r.svg' align="right" height="89" />
 
 
-![](figures/tidymodels.svg){width=15%}
-![](figures/tidyverse.svg){width=15%}
+![](figures/tidymodels.svg){width=5%}
+![](figures/tidyverse.svg){width=5%}
 
 
 ## Data Mining & Machine Learning
