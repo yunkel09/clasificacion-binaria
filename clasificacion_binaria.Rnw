@@ -1,0 +1,709 @@
+% plantilla para tesis
+% fecha-creación: 2022-02-06
+% autor: William Chavarría
+
+% tipo de documento
+\documentclass[10pt, a4paper, oneside]{book}
+
+% IDIOMA Y CODIFICACIÓN ========================================================
+\usepackage[spanish,es-noindentfirst,es-tabla, es-lcroman]{babel}
+\decimalpoint
+
+% ==============================================================================
+
+% FUENTES Y SIMBOLOS ===========================================================
+\usepackage[sc]{mathpazo}
+\usepackage{amssymb}
+\usepackage{xspace}
+
+\usepackage[no-math]{fontspec}
+\usepackage{bm}   
+\setmainfont{SouvenirStd-Light.otf}[
+Ligatures=TeX,
+BoldFont = Souvenir-Medium.otf,
+ItalicFont = SouvenirStd-LightItalic.otf,
+BoldItalicFont = Souvenir-BoldItalic.otf]
+
+
+\setmonofont[Scale=0.8,
+             Contextuals = Alternate,
+             Ligatures = TeX]{JetBrains Mono Medium}
+             
+             
+\usepackage{listings}
+\lstset{
+    basicstyle = \ttfamily,
+    columns = flexible}
+    
+\makeatletter
+\renewcommand*\verbatim@nolig@list{}
+\makeatother
+             
+             
+% ==============================================================================
+
+% ALGORITMOS ===================================================================
+
+% \usepackage[ruled, vlined, linesnumbered]{algorithm2e}
+
+% ==============================================================================
+
+
+\newcommand{\latex}{\LaTeX\xspace}
+
+% IMÁGENES EXTERNAS ============================================================
+% debemos crear una carpeta que se llame imágenes
+\usepackage{graphicx}
+\graphicspath{ {./imagenes/} }
+% \usepackage{svg}
+% ==============================================================================
+
+
+% GENERALES ====================================================================
+\usepackage[authoryear]{natbib}             % hacer citas
+\usepackage{url}                            % agregar links de urls
+
+\renewcommand{\UrlFont}{\sffamily\small}
+
+\usepackage[toc, page]{appendix}            % agregar apéndice
+\renewcommand\appendixtocname{Apéndices}    % renombrar apéndice en toc
+\addto\captionsspanish{                
+  \renewcommand\appendixname{Apéndices}     % renombrar apéndices en general
+  \renewcommand\appendixpagename{Apéndices} % renombrar nombre en cover page
+}
+\setlength{\parskip}{\baselineskip}
+% ==============================================================================
+
+
+% CITAS TEXTUALES  =============================================================
+\usepackage[autostyle]{csquotes}
+\MakeOuterQuote{"}
+% ==============================================================================
+
+
+% FLOTADORES ===================================================================
+\usepackage{caption}
+\captionsetup{font=footnotesize,
+              labelfont=bf}
+
+\usepackage{wrapfig}
+\usepackage{floatrow}    % una mejor opción que float
+
+% la siguiente macro es para nunca tener saltos de página antes de flotantes
+% anclados
+\makeatletter
+\renewcommand\floatHpenalties{\@beginparpenalty\@M}
+\makeatother
+
+% hacer que las tablas tengan la descripción (caption) "arriba"
+\floatsetup[table]{style=plaintop}
+\floatsetup{font=small}
+\floatsetup[figure]{margins=raggedright}
+
+% ==============================================================================
+
+
+% RESALTADO ====================================================================
+\usepackage{soulutf8}
+\setulcolor{blue}
+% \ul{} es para resaltar
+% \setulcolor{red}
+\sethlcolor{yellow}
+% ==============================================================================
+
+% COLORES ======================================================================
+% para que el color sea preciso debemos sumarle siempre 1 punto al red, es decir,
+% primer valor en RGB. e.g si el valor con el cuenta gotas es 151, 64, 0, para
+% obtener un valor preciso es necesario sumarle 1 para que quede 152, 64, 0
+\usepackage{xcolor}
+ \definecolor{celeste}{RGB}{0, 173, 238}  % títulos sin enumerar
+ \definecolor{azul}{RGB}{1, 94, 171}      % títulos sin enumerar
+ \definecolor{cafe}{RGB}{152, 64, 0}      % variables
+ \definecolor{naranja}{RGB}{218, 95, 2}   % comentario muy importante
+ \definecolor{fondo}{RGB}{247, 247, 240}  % autoexplicaciones
+ \definecolor{rojo}{RGB}{198, 0, 0}       % para valores NA
+% ==============================================================================
+
+
+% NUEVOS COMANDOS ==============================================================
+% \ti es para escribir pequeños títulos que no van numerados en la sección
+\newcommand{\ti}[1]{\textcolor{azul}{\textbf{\texttt{#1}}}}
+\newcommand{\im}[1]{\textcolor{naranja}{\textbf{#1}}}
+\newcommand{\va}[1]{\textcolor{cafe}{\texttt{\textbf{#1}}}}
+\newcommand{\ro}[1]{\textcolor{rojo}{\textbf{#1}}}
+\newcommand{\al}[1]{\raisebox{0pt}[\dimexpr\height#1\baselineskip\relax]}
+\newcommand{\fte}[1]{\floatfoot*{\textit{\scriptsize{Fuente: #1}}}}
+% =============================================================================
+
+\usepackage{siunitx}
+\sisetup
+  {
+    exponent-to-prefix = true,
+    round-mode         = places,
+    round-precision    = 2,
+    scientific-notation = engineering,
+    zero-decimal-to-integer = false,
+  }
+
+
+% PERSONALIZAR TABLA DE CONTENIDO (TOC) ========================================
+\usepackage{tocloft}
+\setlength{\cftbeforetoctitleskip}{0pt} % espacio antes del título del índice
+\setlength{\cftaftertoctitleskip}{12pt} % espacio después del indice
+\setlength{\cftparskip}{5pt}            % espacio entre párrafos
+% \setlength{\cftbeforechapskip}{10pt}    % espacio antes de cada capítulo
+\setlength{\cftbeforesecskip}{3pt}      % espacio antes de cada sección
+\setlength{\cftbeforesubsecskip}{5pt}   % espacio antes de cada subsección
+\setcounter{tocdepth}{3}                % profundiad del TOC
+% ==============================================================================
+
+
+% PERSONALIZAR ENCABEZADOS (CAPÍTULOS, SECCIONES, ETC) =========================
+\usepackage[pagestyles]{titlesec}
+
+\titleformat{\chapter}[display]         % que no se vean los capítulos
+  {\normalfont\bfseries}{}{0pt}{\Huge}
+  
+\titleformat{\chapter}  % agregar una línea después de cada capítulo
+  {\normalfont\Huge\bfseries}{\thechapter}{1em}{}[{\titlerule[0.4pt]}]
+
+% definir espacios antes y despues de capítulos y secciones
+\titlespacing{\chapter}{0pt}{-32pt}{0.5cm}
+% \titlespacing{\section}{0pt}{5pt}{0.5cm}
+\titlespacing{\section}{0pt}{5pt}{0.1cm}
+\titlespacing{\subsection}{0pt}{3pt}{0cm}
+\titlespacing{\subsubsection}{0pt}{3pt}{0cm}
+\titlespacing{\paragraph}{0pt}{3pt}{0cm}
+\titlespacing{\subparagraph}{0pt}{3pt}{0cm}
+% ==============================================================================
+
+
+
+% ESPACIOS =====================================================================
+\setlength{\textfloatsep}{2ex} % espacio entre figuras y texto
+% ==============================================================================
+
+
+% CÓDIGO R =====================================================================
+\setlength{\parindent}{0pt}    % párrafos sin indentación
+\parskip = 0.125in
+
+\ifdefined\knitrout
+  \renewenvironment{knitrout}{
+
+    % \setlength{\parskip}{0ex} % espacio entre la instrucción y la salida
+    \setlength{\parskip}{2ex} % espacio entre la instrucción y la salida
+    % \topsep=0ex               % separación entre chunk y parrafo parte superior
+    \topsep=0.5ex               % separación entre chunk y parrafo parte superior
+    \partopsep=-0.5ex         % separación entre instrucción y salida
+    \vspace{0.8ex}   % controla la separación entre el parrafo superior y el
+                     % chunk. con 0.8ex nos da 3.62 cm con 800% de zoom
+    
+  }{
+     \vspace{-0.4ex} % esta es la distancia entre el chunk y el párrafo en la
+                     % parte inferior. 
+  }
+\else
+\fi
+% ==============================================================================
+
+
+% ENUMERAR =====================================================================
+\usepackage{enumitem}
+   \setenumerate{noitemsep}
+	  % \setitemize{noitemsep}
+	  \setdescription{noitemsep}
+
+\setlist{nolistsep}
+
+% definimos dos tipos de enumeraciones: letras y números
+% \SetEnumitemKey{letras}{itemsep = 7pt,
+%                         label = \emph{\alph*}),
+%                         parsep = 0.125in}
+
+\SetEnumitemKey{letras}{itemsep = 0pt,
+                        label = \emph{\alph*}),
+                        parsep = 0.125in}
+                        
+% \SetEnumitemKey{numeros}{itemsep = 7pt,
+%                          label = (\arabic*),
+%                          ref = \arabic*,
+%                          parsep = 0.125in}
+                         
+\SetEnumitemKey{numeros}{label = (\arabic*),
+                         ref = \arabic*,
+                         parsep = 0.125in}                         
+                         
+\newlist{legal}{enumerate}{10}
+\setlist[legal]{label* = \arabic*., 
+                itemsep = 7pt,
+                parsep = 0.125in}                         
+                         
+% ==============================================================================
+
+
+% AGREGAR COLOR DE FONDO =======================================================
+\usepackage{framed}
+\colorlet{shadecolor}{fondo}
+% ==============================================================================
+
+
+% TABLAS =======================================================================
+\usepackage{booktabs}
+
+\usepackage{array}
+   \newcolumntype{P}[1]{>{\centering\arraybackslash}p{#1}}
+   \newcolumntype{M}[1]{>{\arraybackslash}m{#1}}
+
+
+\setlength{\abovetopsep}{-0.9ex}
+
+% \usepackage{tabu}
+
+% \renewcommand{\arraystretch}{1.5}
+% ==============================================================================
+
+% MICROTYPE ====================================================================
+% \usepackage{microtype}
+% \microtypesetup{expansion=true,
+%                 shrink=40,
+%                 factor=1200,
+%        							  activate={true,nocompatibility},
+%        							  tracking=true,
+%        							  stretch = 40,
+%        							  babel=true}
+% \AtBeginEnvironment{verbatim}{\microtypesetup{activate=false}}
+% ==============================================================================
+
+% justificar
+\usepackage{ragged2e} 
+
+% MARGENES =====================================================================
+\usepackage{geometry}
+\geometry{a4paper,           % tamaño de papel
+          verbose,           % agregar información al log
+          tmargin = 1in,
+          bmargin = 1in,
+          lmargin = 1in,
+          rmargin = 1in}
+% ==============================================================================
+
+
+% ENCABEZADOS ==================================================================
+\usepackage{fancyhdr}
+  \pagestyle{fancy}
+  \fancyhf{}
+  \fancyhead{}
+  \fancyhead[R]{\textbf{UVG}}
+  \fancyhead[L]{\rightmark}
+  \fancyfoot[L]{Maestría en Data Science}
+  \fancyfoot[R]{\thepage}
+  \renewcommand{\headrulewidth}{0.4pt}
+  \renewcommand{\footrulewidth}{0.4pt}
+  
+ \setlength{\headheight}{16pt} 
+% ==============================================================================
+
+
+% VARIABLES GENERALES ==========================================================
+\def\maestria{MASTER IN APPLIED DATA SCIENCE}
+\def\titulo{Simulación Montecarlo}
+\def\autor{William Chavarría Zamora}
+\def\fecha{26 de Febrero de 2022}
+% ==============================================================================
+
+
+% REFERENCIAS ==================================================================
+\usepackage{hyperref}
+ \hypersetup{
+     colorlinks   = true,
+     citecolor    = blue,
+     linktocpage  = false,
+     pdfstartpage = 1,
+     breaklinks   = true,
+     pdfpagemode  = UseNone,
+     pageanchor   = true,
+     pdfpagemode  = UseOutlines,
+     plainpages   = false,
+     bookmarksnumbered,
+     bookmarksopen= true,
+     bookmarksopenlevel = \maxdimen,
+     hypertexnames = true,
+     pdfhighlight  = /O}
+% ==============================================================================
+
+% RELACIÓN CODIGO-IMAGENES VS TEXTO ============================================
+\setcounter{topnumber}{2}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{4}
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.7}
+% ==============================================================================
+
+% \usepackage{pdflscape}
+% \usepackage{lipsum}
+
+\begin{document}
+
+\pagenumbering{roman}
+
+<<include=FALSE>>=
+library(knitr)
+opts_chunk$set(echo        = FALSE, 
+               include     = TRUE,
+               cache       = FALSE,
+               fig.align   = 'center',
+               message     = FALSE,
+               warning     = FALSE, 
+               comment     = NA, 
+               highlight   = TRUE,
+               strip.white = TRUE, 
+               fig.width   = 5, 
+               fig.asp     = 0.65,
+               out.extra = '',
+               fig.path    = "figure/",
+               fig.align   = "center")
+
+opts_knit$set(out.format = "latex")
+thm <- knit_theme$get("acid")
+knit_theme$set(thm)
+
+options(
+        # pillar.sigfig    = 5,
+        tibble.print_min = 10,
+        # scipen = 999,
+        # digits = 7,
+        readr.show_col_types = FALSE,
+        dplyr.summarise.inform = FALSE)
+
+set.seed(2021)
+
+# evitar el conflicto que hay con los paquetes {color} y {xcolor}
+knit_hooks$set(document = function(x) {sub('\\usepackage[]{color}', '\\usepackage{xcolor}', 
+                                       x, fixed = TRUE)})
+
+# cargar paquetes
+import::from(magrittr, "%T>%", "%$%", "%<>%", .into = "operadores")
+import::from(zeallot, `%<-%`)
+import::from(fs, dir_ls)
+import::from(nortest, ad.test, pearson.test, sf.test, lillie.test)
+import::from(DescTools, JarqueBeraTest)
+import::from(broom, tidy)
+import::from(kableExtra, .except = "group_rows")
+import::from(cowplot, .except = "stamp")
+import::from(colorblindr, scale_fill_OkabeIto, palette_OkabeIto)
+import::from(patchwork, plot_layout, plot_annotation)
+import::from(conectigo, cargar_fuentes)
+import::from(ggridges, geom_density_ridges_gradient)
+import::from(caret, nearZeroVar)
+import::from(EnvStats, rlnormTrunc)
+pacman::p_load(skimr, janitor, triangle, scales, fitdistrplus, tidyverse)
+
+# fuentes del paquete conectigo
+cargar_fuentes()
+
+# tema limpio
+yunkel <- theme_cowplot(font_family = "yano") +
+ theme(plot.margin   = unit(c(6, 1, 1, 1), "mm"),
+       axis.title    = element_text(size = 10),
+       axis.text     = element_text(size = 8),
+       plot.title    = element_text(size = 18),
+       plot.subtitle = element_text(size = 12))
+
+# tema con grid horizontal y vertical
+drako <- theme_bw(base_family = "yano", base_size = 14) +
+ theme(plot.margin    = unit(c(6, 1, 1, 1), "mm"),
+       axis.title     = element_text(size = 12),
+       axis.text      = element_text(size = 12),
+       plot.title     = element_text(size = 18),
+       plot.subtitle  = element_text(size = 12))
+
+# tema para histogramas binned
+furia <- yunkel +
+ theme(axis.line = element_blank(), 
+       panel.grid.major.y = element_line(color = "#e5e5e5"))
+
+# scales facilita el formato en los gráficos
+porcentaje <- label_percent(decimal.mark = ".", suffix = "%", accuracy = 0.1)
+dol <- dollar_format(accuracy = 0.1)
+
+# establecer tema por defecto
+theme_set(yunkel)
+
+# crear tablas latex
+tabla <- function(df, cap = "prueba") {
+ df %>% 
+  mutate(across(where(is.numeric), round, 2)) |> 
+  kbl(booktabs = TRUE, linesep = "", caption = cap) %>% 
+  kable_paper(full_width = F) %>% 
+  kable_styling(latex_options = "HOLD_position", table.envir = "float")
+}
+
+# resumir estadísticos principales
+resumir <- function(.df) {
+ my_skim <- skim_with(
+  base = NULL,
+  numeric = sfl(mean = ~ mean(., na.rm = TRUE),
+                median = ~ median(., na.rm = TRUE),
+                sd   = ~ sd(., na.rm = TRUE),
+                min  = ~ min(., na.rm = TRUE),
+                max  = ~ max(., na.rm = TRUE)), append = F)
+ my_skim(.df) |> 
+ rename_with(~ str_replace_all(.x, "numeric\\.", "")) |> 
+ select(-skim_type) |> 
+ rename(variable = skim_variable)
+}
+
+# estadísticos para lognormal truncado
+parametros_lognormal <- function(.df) {
+ my_skim <- skim_with(
+  base = NULL,
+  numeric = sfl(meanlog   = ~ mean(., na.rm = TRUE),
+                sdlog  = ~ sd(., na.rm = TRUE),
+                min  = ~ min(., na.rm = TRUE),
+                max  = ~ max(., na.rm = TRUE)), append = F)
+ my_skim(.df) |> 
+ rename_with(~ str_replace_all(.x, "numeric\\.", "")) |> 
+ select(-skim_type) |> 
+ rename(var = skim_variable)
+}
+
+# crear histogramas con función de densidad
+estimar_densidad <- function(df, d, color) {
+ brk <- hist(df[[d]], plot = FALSE)$breaks 
+	med <- mean(df[[d]])
+ df %>% 
+  ggplot(aes(x = .data[[d]], y = ..density..)) +
+  geom_histogram(fill   = color,
+                 colour = "black",
+                 size   = .2,
+                 breaks = brk) +
+  scale_x_continuous(name   = d,
+                     breaks = brk) +
+  geom_density(size = 1) +
+  geom_vline(xintercept = med, 
+             linetype = "dashed",
+             color = "red", 
+             alpha = 0.5) +
+  labs(title = str_to_title(d))
+}
+
+# crear distribución normal
+rnorm2 <- function(n, mean, sd) { 
+  mean + sd * scale(rnorm(n)) |> 
+  as.numeric()
+}
+
+# generalizar pruebas de bondad de ajuste
+## los data.frames deben convertirse a lista de vectores numéricos
+convertir_a_lista <- function(dataframe_num) {
+ dataframe_num |> select(!any_of(vars_to_remove(dataframe_num))) |>
+   drop_na() |> 
+   pivot_longer(cols = everything(), names_to = "variable", values_to = "valor") |>
+   split(~ variable) |>
+   map(~ .x |>
+        pull(valor))
+}
+
+## las columnas con poca varianza deben removerse
+vars_to_remove <- function(dataframe_num) {
+ sin_constantes <- dataframe_num |> remove_constant()
+ k <- sin_constantes |>
+   map(~ as.numeric(nearZeroVar(.x, saveMetrics = TRUE)) |> pluck(2))
+ names(which(k |> map(~ .x) < 10))
+}
+
+## el producto cartesiano genera una combinación la cual debe nombrarse
+obtener_nombres <- function(lista_valores, tipodis) {
+ cross(list(data = names(lista_valores), distr = tipodis)) |> 
+  map(~ .x[[1]]) |>
+  as.character() |> paste0("_", rep(tipodis, each = length(names(lista_valores))))
+}
+
+## producto cartesiano entre los datos y los argumentos de la función principal
+crear_lista_cross <- function(lista_valores, tipodis, nombres_cruza) {
+ cross(list(data = lista_valores, distr = tipodis)) |> 
+  set_names(nombres_cruza)
+}
+
+## el ajuste debe considerar que hay distribuciones que no aceptan valores negativos
+crear_ajustes <- function(lista_cartesi, fitdistx) {
+ list_with_errors <-  lista_cartesi |> 
+   map(lift(fitdistx, discrete = F)) |> 
+   map(~ compact(.x))
+ errores_ind <- unname(which(list_with_errors |> map(~ names(.x)) == "error"))  
+ if (length(errores_ind > 0)) {
+  list_with_errors[-unname(which(list_with_errors |> map(~ names(.x)) == "error"))] |> 
+  map(~ .x[[1]])
+ } else {
+  list_with_errors |> map(~ .x[[1]])
+ }
+}
+
+## gofstats hace el trabajo pesado y luego se parsea la lista en formato tabla
+crear_tabla_gof <- function(lista_ajustad, nombres_dfnum) {
+ sfit <-  nombres_dfnum |>
+  map(~ lista_ajustad[str_detect(names(lista_ajustad), .x)])
+ allf <- sfit |> 
+  map(~ gofstat(.x)) |> 
+  set_names(nombres_dfnum)
+ nombres <- names(allf[[1]])|> str_subset("chisq|test|nbfit|discrete", negate = T)
+ allf |> map(~ .x[names(.x) %in% nombres] |>
+            bind_rows(.id = "test")) |>
+  map_dfr(~ .x, .id = "variable") |> 
+  mutate(across(where(is.numeric), ~ na_if(.x, y = Inf))) |> 
+  mutate(across(where(is.numeric), round, 2))
+}
+
+## una función wrapper que nos ayude a simplificar el código necesario
+validar_gof <- function(df, tipodis) {
+ dataframe_num <- df[sapply(df, is.numeric)]
+ nombres_dfnum <- names(dataframe_num)
+ lista_valores <- convertir_a_lista(dataframe_num)
+ nombres_cruza <- obtener_nombres(lista_valores, tipodis)
+ lista_cartesi <- crear_lista_cross(lista_valores, tipodis, nombres_cruza)
+ fitdistx      <- safely(fitdist)
+ lista_ajustad <- crear_ajustes(lista_cartesi, fitdistx)
+ remover <- vars_to_remove(dataframe_num)
+ if (length(remover) == 0) {
+  crear_tabla_gof(lista_ajustad, nombres_dfnum) |> clean_names()
+ } else {
+  nuevos_nombre <- nombres_dfnum[!nombres_dfnum %in% remover]
+  crear_tabla_gof(lista_ajustad, nuevos_nombre) |> clean_names()
+ }
+}
+
+## solo hace una cosa: determinar la puntuación de cada variable para cada tipo de distr.
+scoring_gof <- function(tabla_gof) {
+ mk_00 <- c("norm" = "normal",
+           "lnorm" = "log_normal",
+           "unif"  = "uniforme")
+ modf <- . %>% str_remove_all("x\\d_mle_") %>% recode(!!!mk_00)
+ tabla_gof |> 
+  mutate(distribucion = names(tabla_gof)[apply(tabla_gof, MARGIN = 1, FUN = which.min)],
+        across(distribucion, modf)) |> 
+  suppressWarnings() |> 
+  count(variable, distribucion, name = "puntuacion") |> 
+  group_by(variable) |> 
+  filter(puntuacion == max(puntuacion)) |> 
+  ungroup()
+}
+
+# cargar set de datos
+archivos <- dir_ls(path = ".", glob = "*.csv")
+arg <- list(lazy = F, name_repair = make_clean_names)
+c(costos, eventos, sitios) %<-% map(archivos, ~ exec("read_csv", file = .x, !!!arg) |> 
+                              mutate(across(where(is.character), toupper)))
+
+costos_kwh <- costos |>
+ rowwise() |> 
+ mutate(mediana_consumo = median(c_across(ckw1:ckw6)),
+        mediana_factura = median(c_across(tf1:tf6)), 
+        costo_kwh = mediana_factura / mediana_consumo,
+        .keep = "unused") |> 
+ select(siteid, costo_kwh)
+
+sitios %<>% left_join(costos_kwh, by = "siteid")
+
+
+# agrupar por sitio y contar fallas
+por_sitio <- eventos |>
+ group_by(sitio) |>
+ summarise(fallas = n()) |> 
+ arrange(desc(fallas))
+
+# frecuencia eventos
+frecuencia_eventos <- sitios |> 
+ select(-costo_kwh) |> 
+ left_join(por_sitio, by = "sitio") |> 
+ mutate(across(where(is.numeric), replace_na, 0),
+        prob_falla = fallas / sum(fallas)) |> 
+ arrange(desc(fallas))
+
+
+@
+
+% aquí va la portada
+<<child='secciones/00_portada.Rnw'>>=
+ 
+@
+\renewcommand{\contentsname}{Índice}
+\tableofcontents
+
+% 
+\addtocontents{toc}{\protect\thispagestyle{empty}} % quitar número de página
+\pagenumbering{arabic}
+\setcounter{page}{1} % establecer pag 1
+
+% aquí van las secciones
+ 
+<<child='secciones/10_introduccion.Rnw'>>=
+ 
+@
+
+<<child='secciones/20_metodos.Rnw'>>=
+
+@
+
+<<child='secciones/30_resultados.Rnw'>>=
+
+@
+
+<<child='secciones/40_discusion.Rnw'>>=
+
+@
+
+<<child='secciones/60_apendice.Rnw'>>=
+
+@
+
+
+<<child='secciones/50_bibliografia.Rnw'>>=
+
+@
+
+<<child='secciones/70_figuras.Rnw'>>=
+
+@
+
+
+<<child='secciones/80_tablas.Rnw'>>=
+
+@
+
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

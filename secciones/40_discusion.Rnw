@@ -1,0 +1,64 @@
+\chapter{Discusión y Conclusiones}
+
+\section{Análisis de los resultados}
+
+Se observa, con base a los resultados, de que si es necesario tomar medidas, al menos
+paliativas para poder detener el sobre-costo que generan las fallas en las unidades de
+aire acondicionado. Los resultados de la simulación indican que se podrían llegar a tener
+costos en un año de operación de entre \Sexpr{a} y \Sexpr{b}.  Hay poca probabilidad de que no se
+obtengan pérdidas del todo. La distribución resultante contiene muchos valores atípicos que
+podrían ocasionar un cálculo incorrecto en los intervalos de confianza.
+
+Uno de los principales hallazgos fue que solo se cuenta con un \Sexpr{m30} de probabilidad de lograr
+un beneficio igual o superior a los USD30K.  Este es el umbral mínimo definido para
+considerar que el problema de consumo energético por si solo, como factor de \emph{savings},
+contribuya de manera importante en el caso de negocio para el proyecto del sistema IoT.
+
+Otro hallazgo es que el coeficiente de variación fue del \Sexpr{cev}.  No se encontró bibliografía
+que pudiéramos citar que indicara umbrales para saber si este es un buen valor.  De forma
+empírica, algunos sitios de internet\footnote{\url{https://bit.ly/34FW8ja}} indican que un
+se considera bueno un CV menor al 30\%, no obstante, otros sitios indican que dependerá de
+cada caso y el nivel de aversión al riesgo la consideración que se tenga sobre este valor.
+
+Para este caso en particular, el caso de negocio del sistema IoT no depende exclusivamente
+de los ahorros que se puedan tener en materia de consumo energético originado por las fallas
+de las unidades de enfriamiento, sino que esto último solo es una pequeña parte de un problema
+más sistémico.  Otros aspectos que se incluirán en el caso de negocio son:
+
+ \begin{itemize}[itemsep=1ex]
+  \item La reducción de la vida útil de las unidades de enfriamiento como producto de la
+  degradación acelerada por estar trabajando de manera conjunta.  El reemplazo por daño total
+  de una unidad es muy grande.
+  \item El \emph{revenue-loss} al momento de una falla en el que ambas unidades dejan de
+  funcionar. Esto se traduce en una potencial caída de servicios y por lo tanto pérdidas
+  cuantiosas de ingresos.
+  \item Incremento en los costos de mantenimiento. Entre más fallas las unidades, hay que
+  hacerle con mayor frecuencia mantenimiento correctivo. Estos mantenimientos tienen un costo
+  alto.
+
+ \end{itemize}
+
+\section{Conclusiones}
+
+El método de Monte-Carlo demostró ser una herramienta de gran utilidad en la evaluación
+probabilística del riesgo. A pesar de que el modelo matemático se validó con dos SME, es
+posible que tenga muchos puntos de mejoras.  Uno de ellos es que no se utilizó el valor
+esperado como una variable determinista, es decir, en el largo plazo, se esperaba que cada
+sitio de la población total, tuviera al menos 7 fallas cada uno.  Al utilizar este enfoque
+los resultados se dispararon.  Otro aspecto de relevancia en el análisis fue la decisión de
+utilizar la distribución log-normal truncada en la que se evaluó también el uso de un ajuste
+en los resultados.  Aquí el \emph{trade-off} fue que con el ajuste se obtenía una media y
+desviación estándar idéntica a la de la muestra, pero los límites inferior y superior eran
+inestables, versus la función pura, en la que se permite una pequeña variación en los dos
+parámetros principales (media y desviación), pero los límites eran exactos.  Al final se
+optó por el método que ofrece un resultado más conservador.
+
+En cuanto a la técnica de evaluación y muestreo, también hay mucho que mejorar.  El diseño
+tiene fallas debido a que se desconoce la precisión del analista para recabar los datos y
+realizar las mediciones de cada caso.  Un diseño más óptimo podría ser automatizar el registro
+de estos eventos a nivel de código para que cada caso tenga una medición más certera.
+
+Un aspecto aun más importante en la incorporación de nuevas técnicas, como la de Monte Carlo
+en el análisis de riesgo y construcción de casos de negocio es como se educa y transmite
+esta complejidad para que sea aceptable su uso. 
+

@@ -1,0 +1,137 @@
+\chapter{Nuevo Producto}
+
+
+ \begin{itemize}[itemsep=1ex]
+ 
+  \item Usted está tratando de hacer la planificación financiera para el desarrollo de un
+  nuevo producto, pero no cuenta con información exacta para realizar el análisis de los
+  resultados que va a obtener.
+  
+  \item Los datos que necesita para realizar el análisis son los siguientes: Ventas (en
+  unidades),  Precio de Venta (en \$/unidad), Costo de Mano de Obra (en \$/unidad) y Costo de
+  Materiales (en \$/unidad).
+  
+  \item Sin embargo, su departamento de finanzas cuenta con suficiente información histórica
+  para productos similares, los cuales se presentan en el archivo adjunto.
+  
+  \item Basado en los datos, usted observa que las ventas presentan una distribución bastante
+  cercana a una distribución normal, por lo que procede a calcular los parámetros de la
+  misma.
+  
+  \item También puede ver que el precio de venta se asemeja a una distribución triangular,
+  por lo que basado en esos datos, nuevamente calcula los parámetros de la distribución.
+  
+  \item El costo de los materiales parece que se distribuye uniformemente, por lo que usted
+  obtiene el valor mínimo y el máximo.
+  
+  \item El costo de la mano de obra parece que también presenta una distribución uniforme,
+  entonces a partir de los datos se obtiene el mínimo y el máximo.
+  
+  \item El presupuesto de gastos administrativos y de publicidad para el primer año es de
+  \$400.000 y \$600.000 respectivamente.
+  
+  \item Con los datos obtenidos, usted construye un modelo financiero que le permite estimar
+  los ingresos para este nuevo producto.  La gerencia financiera le indica que ellos esperan
+  ingresos anuales de \$200,000 para este producto por lo que le piden estimar la
+  probabilidad de alcanzar dicha meta.
+  
+ \end{itemize}
+
+\section{Carga}
+
+<<>>=
+datos <- read_csv(file = "datoshist.csv", lazy = FALSE)
+@
+
+\section{Calcular estadísticos}
+
+<<>>=
+est <- resumir(datos)
+@
+
+<<>>=
+est |> tabla("Estadísticos")
+@
+
+\section{Explorar Distribuciones}
+
+<<>>=
+pal    <- palette_OkabeIto[1:ncol(datos)]
+ndv    <- names(datos)
+@
+
+\begin{figure}[H]
+<<fig.width=7, fig.asp=1>>=
+map2(.x = ndv, .y = pal, ~ estimar_densidad(df = datos, d = .x, color = .y)) %>%   
+ reduce(.f = `+`) + 
+ plot_layout(ncol = 2) +
+ plot_annotation(title    = "Análisis de Distribución", 
+                 subtitle = "Estimación de densidad no paramétrica")
+@
+\caption{Distribuciones}
+   \label{fig:dis1}
+\end{figure}
+
+
+\section{Bondad de Ajuste}
+
+Con base a \citep[pag. ~2]{delignette-muller_fitdistrplus_2015}
+
+\begin{quote}
+Antes de ajustar una o más distribuciones a un conjunto de datos, generalmente es necesario
+elegir buenos candidatos entre un conjunto predefinido de distribuciones. Esta elección puede
+estar guiada por el conocimiento de los procesos estocásticos que rigen la variable modelada,
+o, en ausencia de conocimiento sobre el proceso subyacente, por la observación de su
+distribución empírica. Para ayudar al usuario en esta elección, desarrollamos funciones para
+trazar y caracterizar la distribución empírica.
+\end{quote}
+
+<<>>=
+tipodis <- c("norm", "lnorm", "gamma", "unif")
+@
+
+En el apéndice \ref{appendix:bondad} podemos ver los resultados de todas las pruebas
+realizadas a cada una de las variables de dataset.  El código de la implementación de estas
+pruebas se encuentra en el apéndice \ref{appendix:allcode} para su referencia. 
+
+<<bondad>>=
+validar_gof(df = datos, tipodis = tipodis) |> 
+ scoring_gof() |>
+ tabla("Distribución más probable con base a scoring")
+@
+
+\section{Constantes}
+
+<<>>=
+precio_compra <- 255
+@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

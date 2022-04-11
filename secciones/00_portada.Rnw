@@ -1,0 +1,43 @@
+\begin{titlepage}
+
+	\centering
+	\includegraphics[width=0.3\textwidth]{uvg1}\par\vspace{1.5cm}
+	% \includegraphics[width=0.6\textwidth]{logo_tigo}\par\vspace{1.5cm}
+	{\scshape\huge \maestria \par}
+	\vspace{2cm}
+	
+	
+	
+	% {\huge\bfseries \titulo\par}
+\begin{center}
+{\huge\bfseries Aplicación de simulación Monte Carlo para modelar el costo de energía
+eléctrica en sitios de transmisión bajo condiciones de falla}
+\end{center}	
+	
+	\vspace{1.2cm}
+	
+	{\LARGE \autor\par}
+	\vspace{0.2cm}
+	
+	{\normalsize \fecha\par}
+	\vspace{0.2cm}
+	
+\textbf{Resumen}
+
+\justify	
+Se aplicó el método Monte Carlo para simular los costos de energía eléctrica en
+sitios de transmisión de la red Tigo cuando las unidades de aire acondicionados trabajan de
+forma conjunto. Se construyó un modelo matemático y los resultados indican que en promedio se
+pueden tener costos de USD20K por año si no se toma ninguna acción y que los beneficios de
+implementar un proyecto para corregir el problema podría ir aproximadamente desde los 2K hasta
+los USD37K. La hipótesis inicial de que estos costos podrían ser de USD30K o más tiene una
+probabilidad de aproximadamente el 13\%.
+\vspace{0.4cm}
+
+\textbf{Palabras clave:} Análisis Exploratorio, Análisis Confirmatorio, Simulación Monte Carlo
+	
+	\vspace{0.4cm}
+	\centering
+ \includegraphics[width=0.3\textwidth]{logo_tigo}
+
+\end{titlepage}

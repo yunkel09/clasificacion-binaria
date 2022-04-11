@@ -1,0 +1,121 @@
+\chapter{Introducción}
+
+El modelado del consumo de energía eléctrica es importante para los operadores
+de telecomunicaciones, ya que proporciona pronósticos que pueden ayudar a los
+tomadores de decisiones y administradores financieros a anticiparse a los hechos
+antes de que ocurran y tomar decisiones que ayuden a contrarrestar o mitigar
+cualquier impacto negativo. Un pronóstico preciso ayuda a los operadores a tomar
+decisiones clave de inversión orientadas a la obtención de eficiencias y mejoras
+en los márgenes de ganancia. 
+
+Los costos de energía para los operadores de telecomunicaciones de todo el mundo
+ya son altos, según un reporte de la consultora McKinsey \& Company
+\citep{lee_case_2021}, a fines de 2018, representaron, en promedio, alrededor
+del 5\% de los gastos operativos. En el mismo reporte, la consultora
+establece que la utilización de sensores para optimizar el enfriamiento de los
+sitios puede ayudar a reducir hasta un 4\% los costos de energía con un nivel
+de complejidad y CaPex bajo en un periodo de tiempo de un año.
+
+Los sitios de telecomunicaciones son estructuras de block o concreto con dimensiones
+de entre 6 hasta \SI{64}{\metre\squared} de área en los cuales opera equipo
+electrónico que cumple la función de recolectar el tráfico de voz y datos de los
+usuarios de telefonía para enviarlo a una central.  El ingreso monetario que
+genera un sitio en particular estará en función de la cantidad de usuarios que
+se conectan a las antenas del sitio. Si algún equipo deja de funcionar, el
+ingreso se deja de percibir y por lo tanto se pierden ingresos.
+
+\begin{figure}[H]
+\includegraphics[width = \linewidth]{zoologico2}
+\caption{Vista de planta sitio Zoológico}
+\fte{Departamento de Ingeniería - Tigo Guatemala}
+   \label{fig:vista-planta}
+\end{figure}
+
+Cada sensor tiene la capacidad de medir la humedad y la temperatura de forma
+simultánea. Se colocaron dos sensores de humedad y temperatura en cada una de
+las filas de racks (rectángulos rojos en la figura \ref{fig:vista-planta} en la
+entrada de aire de los equipos.  El sensor de corriente se encuentra en el
+tablero principal.  El sitio tiene un área de \SI{37.57}{\metre\squared} (404.4
+pies cuadrados) y fue seleccionado debido a que es el que mejor cumple las
+condiciones de operación de pasillo frío y pasillo caliente. En la figura
+\ref{fig:vista-planta} se observan dos unidades de enfriamiento. Estas unidades
+son marca Goodman 14 SEER R410A de 5 toneladas (60,000 BTU)\footnote{Capacidad
+para enfriar \SI{278.7}{\metre\squared}} de capacidad para cubrir los
+\SI{97}{\metre\cubed} del cuarto de comunicaciones.\footnote{La altura del sitio
+es de 2.6 metros}
+
+Un censo de carga del sitio indicó que aproximadamente un 70\% del consumo de
+energía eléctrica corresponde a las unidades de enfriamiento. El 30\% restante
+es la carga generada por los equipos electrónicos ubicados en los racks, así
+como la iluminación.
+
+La mayor parte del consumo de energía eléctrica en un sitio de
+telecomunicaciones está destinado a las unidades de enfriamiento, pudiendo
+llegar, como en este caso de estudio, hasta el 70\% . Los aires acondicionados
+tienen la función de mantener un flujo de aire circulando dentro del sitio, así
+como controlar la temperatura y la humedad.
+
+\begin{wrapfigure}[17]{r}[0pt]{7cm}
+\raisebox{0pt}[\dimexpr\height-1\baselineskip\relax]{\includegraphics[scale=0.8]{funcionamiento_aires}}
+  \caption{Patrones en la serie}
+  \label{fig:funair}
+\end{wrapfigure}
+
+Cada vez que el termostato del sitio censa una temperatura mayor o igual a la
+establecida, el compresor se enciende para reducir la temperatura. El
+comportamiento que se observa a nivel de gráfica son ciclos de apagado y
+encendidos del compresor.
+
+Para efectos de modelado estos ciclos de enfriamiento son relevantes debido a que cuando se
+mantienen encendidos, diremos que estamos en modo \textbf{falla}.
+
+Los equipos electrónicos que se encuentran dentro de este sitio pueden operar de
+forma correcta siempre y cuando se encuentren dentro de ciertos parámetros de
+temperatura y humedad.  El sobrepasar estos niveles
+generalmente se traduce en una falla, degradación y/o reducción de la vida útil
+de los mismos, lo cual genera pérdidas de ingresos a la compañía debido a que 
+menos suscriptores bajo el esquema pre-pago podrán completar sus llamadas o 
+hacer uso de servicios de internet.
+
+Con base a la figura \ref{fig:funair} y al contexto antes descrito podemos establecer cuales
+son las condiciones de falla de las unidades de enfriamiento que derivan en una incremento en
+el consumo.  
+
+Cuando el termostato de la manejadora no logra llegar a la temperatura especificada, el
+sistema toma la decisión de arrancar la máquina de respaldo. Esto genera un incremento en
+el consumo por un tiempo determinado hasta que sucedan una de dos cosas.  La primera es que
+ambas máquinas alcancen un estado llamado \textbf{congelamiento} en el cual básicamente dejan de
+funcionar y en consecuencia tenemos caída de servicios, o un segundo escenario en el que
+se detecta este comportamiento y se envía personal para identificar la causa y solucionar el
+problema.
+
+Las manejadoras pueden llegar a trabajar varios días en conjunto antes de que fallen, la
+diferencia en amperios entre el consumo del sitio durante ese tiempo versus el consumo en
+operación normal puede ser de varios días y al multiplicar esto por la cantidad de días y
+la cantidad de sitios durante un periodo de una año, tendremos un importante gasto que
+afecta el EBIDTA de la compañía.
+
+En este punto, con el contexto anterior, podemos establecer nuestras preguntas de
+investigación, sobre la base de un análisis de riesgo, con el fin de evaluar la viabilidad
+de inversión en un proyecto IoT a gran escala:
+
+\begin{shaded}
+ \textbf{¿Es necesario invertir en un sistema que nos ayude a eliminar o mitigar las fallas
+ que se producen en los sistemas de enfriamiento?}
+\end{shaded}
+
+\begin{shaded}
+ \textbf{¿Hasta cuanto pueden ascender los costos de operación (OpEx) en un año en
+ los sitios de transmisión en concepto de energía eléctrica si no se toman acciones para
+ corregir estas fallas?}
+\end{shaded}
+
+La contribución que deben tener de los costos que generan las fallas a las unidades de
+enfriamiento al caso de negocio para que este pueda justificar una inversión en un sistema
+IoT es del USD30K
+
+\begin{shaded}
+ \textbf{¿Qué tan probable es que se obtengan ahorros en costos de más de USD30K al
+ implementar el sistema IoT para mitigar las fallas en las unidades de enfriamiento?}
+\end{shaded}
+

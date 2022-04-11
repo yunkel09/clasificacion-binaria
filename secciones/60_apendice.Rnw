@@ -1,0 +1,42 @@
+\begin{appendices}
+
+\chapter{Análisis Estadístico Complementario}
+
+\section{Bondad de Ajuste}
+\label{appendix:bondad}
+
+<<gof>>=
+total_gof |> tabla("GOF")
+@
+
+\section{Glosario}
+
+\begin{table}[H]
+ \renewcommand{\arraystretch}{2}
+ \footnotesize
+     \centering
+
+     \begin{tabular}{m{3cm} M{12cm} }
+     
+          \textbf{Abreviación} & \\
+          
+          \textbf{SME} & Un experto en la materia es alguien que tiene un conocimiento
+          profundo de un "trabajo, proceso, departamento, función, tecnología, máquina,
+          material o tipo de equipo en particular". Estas personas han pasado años
+          desarrollándose dentro de su disciplina y han desarrollado una experiencia en su
+          campo. \\
+          
+          \end{tabular}
+          
+ \end{table}
+
+\section{Código}
+\label{appendix:allcode}
+<<eval=FALSE, ref.label=all_labels(), echo=TRUE>>=
+
+@
+
+
+\end{appendices}
+
+\clearpage
