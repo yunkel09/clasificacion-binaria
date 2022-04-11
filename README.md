@@ -4,8 +4,8 @@
 
 # Clasificación Binaria <img src='figures/r.svg' align="right" height="89" />
 
-<img src="figures/tidymodels.svg" style="width:5.0%" />
-<img src="figures/tidyverse.svg" style="width:5.0%" />
+<!-- ![](figures/tidymodels.svg){width=5%} -->
+<!-- ![](figures/tidyverse.svg){width=5%} -->
 
 ## Data Mining & Machine Learning
 
