@@ -6,6 +6,8 @@
 \documentclass[10pt, a4paper, oneside]{book}
 
 % IDIOMA Y CODIFICACIÓN ========================================================
+% \usepackage[bitstream-charter]{mathdesign}
+% \usepackage[T1]{fontenc}
 \usepackage[spanish,es-noindentfirst,es-tabla, es-lcroman]{babel}
 \decimalpoint
 
@@ -17,7 +19,7 @@
 \usepackage{xspace}
 
 \usepackage[no-math]{fontspec}
-\usepackage{bm}   
+\usepackage{bm}
 \setmainfont{SouvenirStd-Light.otf}[
 Ligatures=TeX,
 BoldFont = Souvenir-Medium.otf,
@@ -28,18 +30,18 @@ BoldItalicFont = Souvenir-BoldItalic.otf]
 \setmonofont[Scale=0.8,
              Contextuals = Alternate,
              Ligatures = TeX]{JetBrains Mono Medium}
-             
-             
+
+
 \usepackage{listings}
 \lstset{
     basicstyle = \ttfamily,
     columns = flexible}
-    
+
 \makeatletter
 \renewcommand*\verbatim@nolig@list{}
 \makeatother
-             
-             
+
+
 % ==============================================================================
 
 % ALGORITMOS ===================================================================
@@ -67,7 +69,7 @@ BoldItalicFont = Souvenir-BoldItalic.otf]
 
 \usepackage[toc, page]{appendix}            % agregar apéndice
 \renewcommand\appendixtocname{Apéndices}    % renombrar apéndice en toc
-\addto\captionsspanish{                
+\addto\captionsspanish{
   \renewcommand\appendixname{Apéndices}     % renombrar apéndices en general
   \renewcommand\appendixpagename{Apéndices} % renombrar nombre en cover page
 }
@@ -163,7 +165,7 @@ BoldItalicFont = Souvenir-BoldItalic.otf]
 
 \titleformat{\chapter}[display]         % que no se vean los capítulos
   {\normalfont\bfseries}{}{0pt}{\Huge}
-  
+
 \titleformat{\chapter}  % agregar una línea después de cada capítulo
   {\normalfont\Huge\bfseries}{\thechapter}{1em}{}[{\titlerule[0.4pt]}]
 
@@ -198,10 +200,10 @@ BoldItalicFont = Souvenir-BoldItalic.otf]
     \partopsep=-0.5ex         % separación entre instrucción y salida
     \vspace{0.8ex}   % controla la separación entre el parrafo superior y el
                      % chunk. con 0.8ex nos da 3.62 cm con 800% de zoom
-    
+
   }{
      \vspace{-0.4ex} % esta es la distancia entre el chunk y el párrafo en la
-                     % parte inferior. 
+                     % parte inferior.
   }
 \else
 \fi
@@ -224,21 +226,21 @@ BoldItalicFont = Souvenir-BoldItalic.otf]
 \SetEnumitemKey{letras}{itemsep = 0pt,
                         label = \emph{\alph*}),
                         parsep = 0.125in}
-                        
+
 % \SetEnumitemKey{numeros}{itemsep = 7pt,
 %                          label = (\arabic*),
 %                          ref = \arabic*,
 %                          parsep = 0.125in}
-                         
+
 \SetEnumitemKey{numeros}{label = (\arabic*),
                          ref = \arabic*,
-                         parsep = 0.125in}                         
-                         
+                         parsep = 0.125in}
+
 \newlist{legal}{enumerate}{10}
-\setlist[legal]{label* = \arabic*., 
+\setlist[legal]{label* = \arabic*.,
                 itemsep = 7pt,
-                parsep = 0.125in}                         
-                         
+                parsep = 0.125in}
+
 % ==============================================================================
 
 
@@ -276,7 +278,7 @@ BoldItalicFont = Souvenir-BoldItalic.otf]
 % ==============================================================================
 
 % justificar
-\usepackage{ragged2e} 
+\usepackage{ragged2e}
 
 % MARGENES =====================================================================
 \usepackage{geometry}
@@ -300,8 +302,8 @@ BoldItalicFont = Souvenir-BoldItalic.otf]
   \fancyfoot[R]{\thepage}
   \renewcommand{\headrulewidth}{0.4pt}
   \renewcommand{\footrulewidth}{0.4pt}
-  
- \setlength{\headheight}{16pt} 
+
+ \setlength{\headheight}{16pt}
 % ==============================================================================
 
 
@@ -351,16 +353,16 @@ BoldItalicFont = Souvenir-BoldItalic.otf]
 
 <<include=FALSE>>=
 library(knitr)
-opts_chunk$set(echo        = FALSE, 
+opts_chunk$set(echo        = FALSE,
                include     = TRUE,
                cache       = FALSE,
                fig.align   = 'center',
                message     = FALSE,
-               warning     = FALSE, 
-               comment     = NA, 
+               warning     = FALSE,
+               comment     = NA,
                highlight   = TRUE,
-               strip.white = TRUE, 
-               fig.width   = 5, 
+               strip.white = TRUE,
+               fig.width   = 5,
                fig.asp     = 0.65,
                out.extra = '',
                fig.path    = "figure/",
@@ -381,7 +383,7 @@ options(
 set.seed(2021)
 
 # evitar el conflicto que hay con los paquetes {color} y {xcolor}
-knit_hooks$set(document = function(x) {sub('\\usepackage[]{color}', '\\usepackage{xcolor}', 
+knit_hooks$set(document = function(x) {sub('\\usepackage[]{color}', '\\usepackage{xcolor}',
                                        x, fixed = TRUE)})
 
 # cargar paquetes
@@ -422,7 +424,7 @@ drako <- theme_bw(base_family = "yano", base_size = 14) +
 
 # tema para histogramas binned
 furia <- yunkel +
- theme(axis.line = element_blank(), 
+ theme(axis.line = element_blank(),
        panel.grid.major.y = element_line(color = "#e5e5e5"))
 
 # scales facilita el formato en los gráficos
@@ -434,242 +436,30 @@ theme_set(yunkel)
 
 # crear tablas latex
 tabla <- function(df, cap = "prueba") {
- df %>% 
-  mutate(across(where(is.numeric), round, 2)) |> 
-  kbl(booktabs = TRUE, linesep = "", caption = cap) %>% 
-  kable_paper(full_width = F) %>% 
+ df %>%
+  mutate(across(where(is.numeric), round, 2)) |>
+  kbl(booktabs = TRUE, linesep = "", caption = cap) %>%
+  kable_paper(full_width = F) %>%
   kable_styling(latex_options = "HOLD_position", table.envir = "float")
 }
-
-# resumir estadísticos principales
-resumir <- function(.df) {
- my_skim <- skim_with(
-  base = NULL,
-  numeric = sfl(mean = ~ mean(., na.rm = TRUE),
-                median = ~ median(., na.rm = TRUE),
-                sd   = ~ sd(., na.rm = TRUE),
-                min  = ~ min(., na.rm = TRUE),
-                max  = ~ max(., na.rm = TRUE)), append = F)
- my_skim(.df) |> 
- rename_with(~ str_replace_all(.x, "numeric\\.", "")) |> 
- select(-skim_type) |> 
- rename(variable = skim_variable)
-}
-
-# estadísticos para lognormal truncado
-parametros_lognormal <- function(.df) {
- my_skim <- skim_with(
-  base = NULL,
-  numeric = sfl(meanlog   = ~ mean(., na.rm = TRUE),
-                sdlog  = ~ sd(., na.rm = TRUE),
-                min  = ~ min(., na.rm = TRUE),
-                max  = ~ max(., na.rm = TRUE)), append = F)
- my_skim(.df) |> 
- rename_with(~ str_replace_all(.x, "numeric\\.", "")) |> 
- select(-skim_type) |> 
- rename(var = skim_variable)
-}
-
-# crear histogramas con función de densidad
-estimar_densidad <- function(df, d, color) {
- brk <- hist(df[[d]], plot = FALSE)$breaks 
-	med <- mean(df[[d]])
- df %>% 
-  ggplot(aes(x = .data[[d]], y = ..density..)) +
-  geom_histogram(fill   = color,
-                 colour = "black",
-                 size   = .2,
-                 breaks = brk) +
-  scale_x_continuous(name   = d,
-                     breaks = brk) +
-  geom_density(size = 1) +
-  geom_vline(xintercept = med, 
-             linetype = "dashed",
-             color = "red", 
-             alpha = 0.5) +
-  labs(title = str_to_title(d))
-}
-
-# crear distribución normal
-rnorm2 <- function(n, mean, sd) { 
-  mean + sd * scale(rnorm(n)) |> 
-  as.numeric()
-}
-
-# generalizar pruebas de bondad de ajuste
-## los data.frames deben convertirse a lista de vectores numéricos
-convertir_a_lista <- function(dataframe_num) {
- dataframe_num |> select(!any_of(vars_to_remove(dataframe_num))) |>
-   drop_na() |> 
-   pivot_longer(cols = everything(), names_to = "variable", values_to = "valor") |>
-   split(~ variable) |>
-   map(~ .x |>
-        pull(valor))
-}
-
-## las columnas con poca varianza deben removerse
-vars_to_remove <- function(dataframe_num) {
- sin_constantes <- dataframe_num |> remove_constant()
- k <- sin_constantes |>
-   map(~ as.numeric(nearZeroVar(.x, saveMetrics = TRUE)) |> pluck(2))
- names(which(k |> map(~ .x) < 10))
-}
-
-## el producto cartesiano genera una combinación la cual debe nombrarse
-obtener_nombres <- function(lista_valores, tipodis) {
- cross(list(data = names(lista_valores), distr = tipodis)) |> 
-  map(~ .x[[1]]) |>
-  as.character() |> paste0("_", rep(tipodis, each = length(names(lista_valores))))
-}
-
-## producto cartesiano entre los datos y los argumentos de la función principal
-crear_lista_cross <- function(lista_valores, tipodis, nombres_cruza) {
- cross(list(data = lista_valores, distr = tipodis)) |> 
-  set_names(nombres_cruza)
-}
-
-## el ajuste debe considerar que hay distribuciones que no aceptan valores negativos
-crear_ajustes <- function(lista_cartesi, fitdistx) {
- list_with_errors <-  lista_cartesi |> 
-   map(lift(fitdistx, discrete = F)) |> 
-   map(~ compact(.x))
- errores_ind <- unname(which(list_with_errors |> map(~ names(.x)) == "error"))  
- if (length(errores_ind > 0)) {
-  list_with_errors[-unname(which(list_with_errors |> map(~ names(.x)) == "error"))] |> 
-  map(~ .x[[1]])
- } else {
-  list_with_errors |> map(~ .x[[1]])
- }
-}
-
-## gofstats hace el trabajo pesado y luego se parsea la lista en formato tabla
-crear_tabla_gof <- function(lista_ajustad, nombres_dfnum) {
- sfit <-  nombres_dfnum |>
-  map(~ lista_ajustad[str_detect(names(lista_ajustad), .x)])
- allf <- sfit |> 
-  map(~ gofstat(.x)) |> 
-  set_names(nombres_dfnum)
- nombres <- names(allf[[1]])|> str_subset("chisq|test|nbfit|discrete", negate = T)
- allf |> map(~ .x[names(.x) %in% nombres] |>
-            bind_rows(.id = "test")) |>
-  map_dfr(~ .x, .id = "variable") |> 
-  mutate(across(where(is.numeric), ~ na_if(.x, y = Inf))) |> 
-  mutate(across(where(is.numeric), round, 2))
-}
-
-## una función wrapper que nos ayude a simplificar el código necesario
-validar_gof <- function(df, tipodis) {
- dataframe_num <- df[sapply(df, is.numeric)]
- nombres_dfnum <- names(dataframe_num)
- lista_valores <- convertir_a_lista(dataframe_num)
- nombres_cruza <- obtener_nombres(lista_valores, tipodis)
- lista_cartesi <- crear_lista_cross(lista_valores, tipodis, nombres_cruza)
- fitdistx      <- safely(fitdist)
- lista_ajustad <- crear_ajustes(lista_cartesi, fitdistx)
- remover <- vars_to_remove(dataframe_num)
- if (length(remover) == 0) {
-  crear_tabla_gof(lista_ajustad, nombres_dfnum) |> clean_names()
- } else {
-  nuevos_nombre <- nombres_dfnum[!nombres_dfnum %in% remover]
-  crear_tabla_gof(lista_ajustad, nuevos_nombre) |> clean_names()
- }
-}
-
-## solo hace una cosa: determinar la puntuación de cada variable para cada tipo de distr.
-scoring_gof <- function(tabla_gof) {
- mk_00 <- c("norm" = "normal",
-           "lnorm" = "log_normal",
-           "unif"  = "uniforme")
- modf <- . %>% str_remove_all("x\\d_mle_") %>% recode(!!!mk_00)
- tabla_gof |> 
-  mutate(distribucion = names(tabla_gof)[apply(tabla_gof, MARGIN = 1, FUN = which.min)],
-        across(distribucion, modf)) |> 
-  suppressWarnings() |> 
-  count(variable, distribucion, name = "puntuacion") |> 
-  group_by(variable) |> 
-  filter(puntuacion == max(puntuacion)) |> 
-  ungroup()
-}
-
-# cargar set de datos
-archivos <- dir_ls(path = ".", glob = "*.csv")
-arg <- list(lazy = F, name_repair = make_clean_names)
-c(costos, eventos, sitios) %<-% map(archivos, ~ exec("read_csv", file = .x, !!!arg) |> 
-                              mutate(across(where(is.character), toupper)))
-
-costos_kwh <- costos |>
- rowwise() |> 
- mutate(mediana_consumo = median(c_across(ckw1:ckw6)),
-        mediana_factura = median(c_across(tf1:tf6)), 
-        costo_kwh = mediana_factura / mediana_consumo,
-        .keep = "unused") |> 
- select(siteid, costo_kwh)
-
-sitios %<>% left_join(costos_kwh, by = "siteid")
-
-
-# agrupar por sitio y contar fallas
-por_sitio <- eventos |>
- group_by(sitio) |>
- summarise(fallas = n()) |> 
- arrange(desc(fallas))
-
-# frecuencia eventos
-frecuencia_eventos <- sitios |> 
- select(-costo_kwh) |> 
- left_join(por_sitio, by = "sitio") |> 
- mutate(across(where(is.numeric), replace_na, 0),
-        prob_falla = fallas / sum(fallas)) |> 
- arrange(desc(fallas))
-
 
 @
 
 % aquí va la portada
 <<child='secciones/00_portada.Rnw'>>=
- 
+
 @
 \renewcommand{\contentsname}{Índice}
 \tableofcontents
 
-% 
+%
 \addtocontents{toc}{\protect\thispagestyle{empty}} % quitar número de página
 \pagenumbering{arabic}
 \setcounter{page}{1} % establecer pag 1
 
 % aquí van las secciones
- 
+
 <<child='secciones/10_introduccion.Rnw'>>=
- 
-@
-
-<<child='secciones/20_metodos.Rnw'>>=
-
-@
-
-<<child='secciones/30_resultados.Rnw'>>=
-
-@
-
-<<child='secciones/40_discusion.Rnw'>>=
-
-@
-
-<<child='secciones/60_apendice.Rnw'>>=
-
-@
-
-
-<<child='secciones/50_bibliografia.Rnw'>>=
-
-@
-
-<<child='secciones/70_figuras.Rnw'>>=
-
-@
-
-
-<<child='secciones/80_tablas.Rnw'>>=
 
 @
 

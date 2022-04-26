@@ -1,0 +1,1402 @@
+---
+title: "Regresión Logística"
+author: "William Chavarría"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+import::from(magrittr, "%T>%", "%$%", .into = "operadores")
+import::from(lubridate, .except = c("intersect", "setdiff", "union"))
+import::from(conectigo, conectar_msql, cargar_fuentes)
+import::from(dbplyr, in_schema)
+import::from(statistigo, coloring_font)
+import::from(skimr, skim)
+import::from(formattable, color_tile)
+import::from(patchwork, plot_layout, plot_annotation)
+import::from(caret, nearZeroVar)
+import::from(parallel, detectCores, makePSOCKcluster, stopCluster)
+import::from(tidytext, reorder_within, scale_y_reordered, scale_x_reordered)
+import::from(doParallel, registerDoParallel)
+import::from(cowplot, .except = "stamp")
+import::from(kableExtra, .except = "group_rows")
+import::from(DataExplorer, plot_intro, plot_bar, plot_density)
+import::from(colorblindr, scale_color_OkabeIto)
+import::from(ggstatsplot, ggbetweenstats, gghistostats, ggbarstats, ggwithinstats)
+pacman::p_load(fst, janitor, tictoc, pins, themis, tidymodels, tidyverse)
+```
+
+# Funciones
+
+```{r}
+codificar <- function(x) {
+ recode(x, NO = "0", SI = "1") |> 
+ parse_integer()
+}
+```
+
+```{r}
+# detener el backend
+unregister <- function() {
+  env <- foreach:::.foreachGlobals
+  rm(list=ls(name=env), pos=env)
+}
+```
+
+
+```{r}
+trim_t <- function(x){
+  x[(x > quantile(x, 0.25)-1.5*IQR(x)) & (x < quantile(x, 0.75)+1.5*IQR(x))]
+}
+```
+
+```{r}
+barra <- function(df, x) {
+	
+	dfx <- df %>%
+		tabyl({{x}}) %>% 
+		adorn_pct_formatting()
+	
+	dfx %>% 
+		ggplot(aes(y = {{x}}, x = n)) +
+		geom_col(fill = "#0072B2", width = 0.8) +
+		geom_text(aes(label = str_c(n, " ", "(", percent, ")")),
+					 hjust = 1.1,
+					 size = 4,
+					 color = "white") +
+					 # fontface = "bold") +
+		scale_x_continuous(name = NULL, expand = c(0, 0)) +
+		scale_y_discrete(name = NULL, expand = c(0, 0.5)) +
+		# coord_cartesian(clip = "off") +
+		theme_minimal_vgrid(font_family = "yano") +
+		theme(axis.text.y = element_text(size = 14),
+				plot.title = element_text(size = 22, face = "bold"))
+}
+```
+
+
+```{r}
+extraer_retina <- function(conx, siteid, fecha_inicio, fecha_fin) {
+ 
+ tbl(conx, in_schema("retina", "data_nci")) |>
+  filter(
+   fecha_hora >= fecha_inicio,
+   fecha_hora <=  fecha_fin,
+   sitio_id == siteid,
+   nombre_sensor == "combustible"
+  ) |>
+  select(fecha  = fecha_hora,
+         siteid = sitio_id,
+         sensor = nombre_sensor,
+         valor
+  ) |> 
+  group_by(siteid) |>
+  summarise(inicio_powercut = fecha_inicio,
+            fin_powercut = fecha_fin,
+            galonaje = max(valor, na.rm = TRUE))
+}
+```
+
+
+```{r}
+yunkel <- theme_cowplot(font_family = "yano") +
+ theme(plot.margin   = unit(c(6, 1, 1, 1), "mm"),
+       axis.title    = element_text(size = 10),
+       axis.text     = element_text(size = 10),
+       plot.title    = element_text(size = 18),
+       plot.subtitle = element_text(size = 12))
+
+# tema con grid horizontal y vertical
+drako <- theme_bw(base_family = "yano", base_size = 14) +
+ theme(plot.margin    = unit(c(6, 1, 1, 1), "mm"),
+       axis.title     = element_text(size = 12),
+       axis.text      = element_text(size = 12),
+       plot.title     = element_text(size = 18),
+       plot.subtitle  = element_text(size = 12))
+```
+
+
+
+```{r}
+tabla <- function(df, cap = "prueba") {
+  
+  df %>% 
+   kbl(booktabs = TRUE, caption = cap, escape = F) %>% 
+   kable_paper(lightable_options = "hover", full_width = F)}
+```
+
+```{r}
+furia <- yunkel +
+ theme(axis.line = element_blank(), 
+       panel.grid.major.y = element_line(color = "#e5e5e5"))
+```
+
+
+# Opciones
+
+```{r}
+options(pillar.sigfig    = 5,
+         tibble.print_min = 30,
+         scipen = 999,
+         digits = 7,
+         readr.show_col_types = FALSE,
+         dplyr.summarise.inform = FALSE)
+```
+
+
+
+# Regresión Logística
+
+Utilice los datos de Field Service para predecir si un sitio se va a caer por problemas con
+la energía eléctrica.
+
+Se cuentan con 1,902 observaciones y 7 variables, donde la variable "is_affected" es la
+variable a predecir.
+
+Descripción de las variables:
+
+* affected: Indica si el sitio se cayó por problema de enería o no.
+* duration: Tiempo que estuvo el sitio caído.
+* transfer: Indica si funcionó la transferencia (1) y el MG arrancó y 0 es que no funcióno.
+* runningm: Tiempo que estuvo el MG funcionando.
+* outageti: Tiempo que duró la interrupción de energía.
+* startout: Timestamp inicio de la afectación.
+* finishou: Timestamp fin de la afectación.
+* siteidfs: Identificador único de sitio
+
+**Realiza los siguientes pasos para crear un modelo de regresión logística:**
+
+* Carga los datos y explóralos.
+* Divide el conjunto de datos en un conjunto de entrenamiento (80%) y un conjunto de prueba 20%.
+* Con el conjunto de datos de entrenamiento crea un modelo logístico cuya variable respuesta
+es default, en función del resto de variables. Elimina del modelo aquellas variables no
+significativas.
+* Evalúa si el modelo creado es significativo y medidas de bondad de ajuste. Obtén las
+variables más importantes.
+* Con el modelo ajustado, predice la respuesta para el conjunto de prueba y construye una
+matriz de confusión. Dibuja la curva ROC y calcula medidas de precisión.
+* En cada paso interpreta los resultados.
+
+
+# Carga
+
+```{r}
+con <- conectar_msql()
+```
+
+```{r}
+sitios <- tbl(con, in_schema("tkd", "w_sitios")) |>
+ collect() |> 
+ distinct(siteid, .keep_all = TRUE)
+```
+
+```{r}
+DBI::dbDisconnect(con)
+```
+
+```{r}
+baterias_raw <- read_csv("site_root_cause.csv", lazy = FALSE, name_repair = make_clean_names)
+```
+
+```{r}
+baterias <- baterias_raw |> 
+ select(siteid = cilocation,
+        inicio = occurred_on,
+        fin = cleared_on,
+        duration,
+        status = root_cause,
+        running_on_battery,
+        power_cut)
+```
+
+
+```{r}
+atr_raw <- read_csv("site_attribute.csv", lazy = FALSE, name_repair = make_clean_names)
+```
+
+```{r}
+tipo_bat <- c(PLOMO = 1L, LITIO = 0L)
+```
+
+```{r}
+# plomo = 1, litio = 0
+tanque_baterias <- atr_raw |> 
+ pivot_wider(names_from = "name", values_from = "value") |>
+ clean_names() |> 
+ rename(siteid = cilocation,
+        mtto = periodicidad_mg,
+        tanque = capacidad_tanque_motor) |> 
+ filter(motor_generador == "SI") |> 
+ select(-motor_generador, -tipo_motor) |> 
+ mutate(across(tipo_bateria, recode, !!!tipo_bat),
+        tanque = case_when(
+         siteid == "GUA030" & is.na(tanque) ~ "155",
+         siteid == "GUA073" & is.na(tanque) ~ "157",
+         siteid == "GUA958" & tanque == "OTRO" ~ "157",
+         TRUE ~ tanque),
+         across(tanque, parse_integer))
+```
+
+
+```{r}
+raw_mg <- read_csv("site_mg_efficiency.csv", lazy = FALSE, name_repair = make_clean_names)
+```
+
+
+
+```{r}
+mg_nombres <- raw_mg |> 
+ select(
+  siteid            = cilocation,
+  inicio_powercut   = ocurred_on_nt,
+  fin_powercut      = cleared_on_nt,
+  duracion_powercut = duration,
+  status           = is_affected,
+  arranco_mg        = is_transference,
+  duracion_con_mg   = running_on_mg)
+  # duracion_corte    = outage)
+```
+
+```{r}
+# el mg trabaja un tiempo variable adicional en función del sitio aunque haya regresado la
+# energía. 
+mg_clean <- mg_nombres |>
+ mutate(
+  across(status:arranco_mg, as.integer),
+  status = if_else(status >= 1, "down", "up"),
+  sin_energia = duracion_powercut * 60,
+  mg_trabajando = duracion_con_mg * 60, 
+  dia = day(inicio_powercut),
+  mes = month(inicio_powercut),
+  ano = year(inicio_powercut),
+  .after = "arranco_mg") |>
+ select(-duracion_powercut, -duracion_con_mg) |> 
+ relocate(
+  status,
+  arranco_mg,
+  inicio_powercut,
+  fin_powercut,
+  dia,
+  mes,
+  ano,
+  sin_energia,
+  mg_trabajando,
+  siteid
+ )
+```
+
+
+```{r}
+mg_set <- mg_clean |> 
+ # filter(siteid == "GUA048") |> arrange(desc(inicio_powercut)) |> 
+ select(siteid, 
+        fecha_inicio = inicio_powercut, 
+        fecha_fin = fin_powercut)
+ # slice(1)
+```
+
+```{r}
+galonaje <- read_fst("./galonaje.fst") |> 
+ as_tibble()
+```
+
+
+```{r,eval=FALSE}
+tic()
+galonaje <- pmap_dfr(mg_set, ~ extraer_retina(conx = con, 
+                                              siteid = ..1,
+                                              fecha_inicio = ..2,
+                                              fecha_fin = ..3) |> 
+      collect()) |> 
+ mutate(across(contains("powercut"), ymd_hms))
+toc()
+```
+ 
+
+
+```{r}
+mg <- mg_clean |> 
+ inner_join(galonaje, by = c("siteid", "inicio_powercut", "fin_powercut")) |> 
+ mutate(
+  status = factor(status, levels = c("up","down")),
+  # across(status, as.factor),
+  es = case_when(
+  status == 0 & is.na(galonaje) ~ TRUE,
+  TRUE ~ FALSE)) |> 
+ filter(es == F, galonaje > 0) |> 
+ select(-es) |> 
+ left_join(tanque_baterias, by = "siteid") |> 
+ select(status, where(is.numeric))
+```
+
+- Agregar información de la capacidad de galonaje con en la fecha de la alarma con un
+margen de 30 min para que pueda entrar. Usar intervalos.
+
+# EDA
+
+## Variable dependiente
+
+```{r}
+mg |> 
+ barra(status) +
+ labs(title = "Clasificación desequilibrada")
+```
+
+## Distribuciones
+
+```{r}
+# new_data <- tibble(tse = trim_t(mg_clean$tiempo_sin_energia))
+# 
+# dol <- dollar_format(accuracy = 0.1)
+# brk <- hist(new_data$tse, plot = F)$breaks
+# 
+# new_data |>
+#  ggplot(aes(x = tse, y = ..density..)) +
+#  geom_histogram(fill = "#56B4E9", size = .2, breaks = brk, color = "black") +
+#  geom_density(size = 1) +
+#  geom_vline(xintercept = 0, color = "black", linetype = "dashed") +
+#  scale_x_continuous(name = "Tiempo sin energía en minutos", breaks = brk)  +
+#  labs(title = "Distribución Trimmed del tiempo sin energía") + furia
+
+```
+
+## Atípicos
+
+## Relación
+
+```{r}
+mg |>  
+ tabyl(status, arranco_mg) |> 
+ adorn_totals(where = c("row","col"), name = "total") |> 
+ adorn_percentages(denominator = "row") |>
+ adorn_pct_formatting(rounding = "half up", digits = 2) |>
+ adorn_ns() %>%
+ adorn_title("combined") |>
+ tabla("Relación entre la afectación y el funcionamiento de la ATS")
+```
+
+
+```{r}
+mg |> ggbarstats(x = arranco_mg, y = status, bf.message = F)
+```
+
+<p class="comment">
+Vemos el p-valor en cada barra y vemos que es mayor al nivel de significancia, lo que
+significa que cada categoría indica que no existen diferencias significativas entre si
+funcionó la transferencia y que el sitio se haya visto afectado por problemas de energía. La
+prueba de independencia se indica en la parte superior del gráfico y en este caso como el
+p-valor es superior a un 0.05 para un nivel de confianza del 95%, **no podemos rechazamos la
+hipótesis nula de igualdad de proporciones.** También vemos que el tamaño del efecto es de 0.
+</p>
+
+# Split
+
+Vamos a realizar el split de los datos y colocar el argumento `strata`. Este argumento
+asegura que ambos lados de la división tengan aproximadamente la misma distribución para cada
+valor de los estratos.
+
+```{r}
+set.seed(2022)
+mg_split <- initial_split(data = mg, strata = status, prop = 0.7)
+train    <- training(mg_split)
+test     <- testing(mg_split)
+```
+
+```{r}
+# crear set de validación a partir de los datos de entrenamiento
+mg_valid <- validation_split(train, prop = 3/4, strata = status)
+```
+
+```{r}
+knitr::include_graphics("../proyecto_final/imagenes/validacion.jpg")
+```
+
+
+```{r}
+particion <- validation_split(train, prop = 0.7, strata = status)
+mg_train <- particion$splits[[1]] |> analysis()
+mg_valid <- particion$splits[[1]] |> assessment()
+```
+
+```{r}
+split_df <- tibble(
+  dataset = c("dataset_original", "train", "test", "mg_train", "mg_valid"),
+  size  = c(nrow(mg), nrow(train), nrow(test), nrow(mg_train), nrow(mg_valid)))
+```
+
+```{r}
+split_df |> 
+ tabla(cap = "Data Spending")
+```
+
+# Cross-Validación
+
+Debido a que tenemos una muestra relativamente grande[^1] un CV con 10 K-fold
+será suficiente para obtener **buenas propiedades de bias y varianza.**
+
+[^1]: Definir que es grande y que es pequeño es difícil
+
+```{r, paged.print = FALSE}
+(mg_folds <- vfold_cv(mg_train, v = 10, strata = status))
+```
+
+# Preprocesamiento
+
+Crearemos varias recetas para poder probar con los distintos métodos que ayudan
+a corregir el desequilibrio entre las distintas clases.
+
+Lo que haremos en general será:
+
+-   Balancear los datos con distintos métodos.
+-   Remover variables que tengan cero varianza o varianza próxima a cero.
+-   Centrar y escalar
+-   Solo en una receta aplicaremos tratamiento a los atípicos.
+
+Antes de realizar este procedimiento, validemos cuantas variables quedarían
+después de remover las variables tienen varianza cero o próxima a cero.
+
+## SMOTE
+
+```{r}
+receta_smote <- recipe(formula = status ~ ., data = mg_train) %>% 
+  step_nzv(all_predictors()) %>%
+  step_normalize(all_numeric()) %>% 
+  step_smote(status, skip = TRUE)
+```
+
+Veamos como quedó esta receta a nivel de dataset:
+
+```{r}
+receta_smote %>%
+	prep() %>%
+	juice() %>% 
+	slice_sample(n = 4)
+```
+
+La función `step_nzv()` busca predictores con varianza cercana a cero. Aquí vemos que **no
+excluyó ningún predictor**
+
+```{r}
+receta_smote %>%
+	prep() %>%
+	juice() %>% 
+	barra(status) + labs("Clasificación Balanceada")
+```
+
+## SMOTE + Atípicos
+
+Utilizaremos una receta con un paso adicional denominado *spatial sign* el
+cual, según [@johnson_63_nodate]:
+
+> "La transformación de signo espacial toma un conjunto de variables predictoras
+y las transforma de manera que los nuevos valores tengan la misma distancia al
+centro de la distribución. En esencia, los datos se proyectan en una esfera
+multidimensional ..."
+
+```{r}
+receta_smote_outliers <- receta_smote %>% 
+  step_spatialsign(all_predictors())
+```
+
+## Submuestreo
+
+Recordemos que en tidymodels las recetas de preprocesamiento que se apliquen a
+los datos de entrenamiento luego se aplican a los datos de prueba. En el caso
+de pasos (*steps*) de pre-procesamiento que realizan sobre-muestreo o
+sub-muestreo es muy importante que este paso **no se aplique a los datos que
+estamos pronosticando**. Por esta razón cuando usemos recetas debemos utilizar
+una opción llamada `skip = TRUE` para que se ignore este paso en la fase de
+predicción (e.g con `predict()`).
+
+La idea principal es aislar los pasos de pre-procesamiento que podrían causar
+errores si se aplican a nuevas muestras (e.g set de prueba).
+
+
+```{r}
+receta_submuestreo <- recipe(formula = status ~ ., data = mg_train) %>% 
+  step_nzv(all_predictors()) %>% 
+  step_normalize(all_numeric()) %>% 
+  step_downsample(status, skip = TRUE)
+```
+
+## Sobremuestreo
+
+```{r}
+receta_sobremuestreo <- recipe(formula = status ~ ., data = mg_train) %>% 
+  step_nzv(all_predictors()) %>% 
+  step_normalize(all_numeric()) %>% 
+  step_upsample(status, skip = TRUE)
+```
+
+## ROSE
+
+```{r}
+receta_rose <- recipe(formula = status ~ ., data = mg_train) %>% 
+  step_nzv(all_predictors()) %>% 
+  step_normalize(all_numeric()) %>% 
+  step_rose(status, skip = TRUE)
+```
+
+# Modelos
+
+En este apartado definimos tres cosas: 
+
+1. El modelo a utilizar
+2. El modo. El cual puede ser clasificación o regresión.
+3. El motor. En este caso la librería o paquete que contiene el modelo a utilizar.
+
+## K-NN
+
+Aquí *K* corresponde al parámetro *neighbors*. Establecemos `tune()` con el fin
+de que encuentre la *K* óptima.
+
+```{r}
+knn_kknn <- nearest_neighbor(neighbors = tune(),
+						     weight_func = tune()) %>%
+	set_mode("classification") %>%
+	set_engine("kknn")
+```
+
+## SVM
+
+Definiremos los distintos *kernels* a través de definiciones separadas.
+
+- Lineal
+- Polinomio
+- Radial
+
+```{r}
+svm_l_kernlab <- svm_linear(cost = tune()) %>%
+	set_mode("classification") %>%
+	set_engine("kernlab")
+```
+
+```{r}
+svm_p_kernlab <- svm_poly(cost    = tune(),
+						  degree = tune()) %>% 
+  set_engine("kernlab") %>% 
+  set_mode("classification")
+```
+
+
+```{r}
+svm_r_kernlab <- svm_rbf(cost    = tune(), 
+					     rbf_sigma = tune()) %>% 
+  set_engine("kernlab") %>% 
+  set_mode("classification")
+```
+
+## Logistic Regresion
+
+```{r}
+glm_lre <- logistic_reg() |> 
+ set_engine("glm") |> 
+ set_mode("classification")
+```
+
+
+## Workflow
+
+Agregaremos las recetas y los modelos a una lista nombrada para luego realizar
+el tuning de hiperparámetros en una cuadrícula de 20 valores.
+
+### Recetas
+
+```{r}
+preprocesadores <- list(smote_simple  = receta_smote, 
+						smote_outlier = receta_smote_outliers, 
+						submuestreo   = receta_submuestreo,
+						sobremuestreo = receta_sobremuestreo,
+						rose          = receta_rose)
+```
+
+Podemos aprovechar que tenemos esta lista de recetas para medir el impacto de
+los algoritmos de balanceo en cuanto a la cantidad de filas que dejan para
+ajustar el modelo
+
+```{r observaciones, paged.print = FALSE}
+preprocesadores %>%
+	map(~ prep(.) %>%
+		 juice() %>% 
+		 nrow()) %>% 
+	enframe() %>% 
+	unnest(value) %>% 
+	arrange(desc(value)) %>% 
+	tabla(cap = "Cantidad de observaciones restantes")
+```
+
+<br/>
+
+Con base a la tabla \@ref(tab:observaciones) vemos que el algoritmo de
+**submuestreo resulta en menos observaciones** que los restantes tres,
+pudiendo significar esto que hay perdida de información.
+
+### Modelos
+
+```{r}
+modelos <- list(knn = knn_kknn,
+			svm_p_kernlab   = svm_p_kernlab,
+			svm_l_kernlab   = svm_l_kernlab,
+			svm_r_kernlab   = svm_r_kernlab,
+			glm_logistreg   = glm_lre)
+```
+
+### Flujo
+
+Esto es similar a crear una rejilla con la función de base `expand.grid()`. Se
+realiza una combinación de todas las recetas con todos los modelos al establecer
+el parámetro `cross = TRUE`.
+
+Esto solo es posible debido a que los modelos requieren
+prácticamente los mismos pasos de preprocesamiento, aunque algunos autores 
+indican decorrelacionar predictores podría no ayudar a mejorar el desempeño, pero si a 
+mejorar la puntuación en la estimación de la varianza. 
+
+```{r}
+mg_workflow <- workflow_set(preproc = preprocesadores, 
+							  models  = modelos, 
+							  cross   = TRUE)
+```
+
+```{r, paged.print = FALSE}
+mg_workflow
+```
+
+Tenemos ahora un objeto virgen (sin ajustar) que contiene todas las
+combinaciones de recetas y modelos.
+
+## Cuadrícula
+
+Con la función `control_grid()` lo que haremos será retener los modelos y
+recetas ajustados. Además, cuando establecemos la opción `save_pred = TRUE`
+conservaremos las predicciones del conjunto de evaluación y podremos acceder a
+ellas mediante `collect_predictions()` .
+
+```{r}
+grid_ctrl <- control_grid(
+      save_pred     = TRUE,
+      parallel_over = "everything",
+      save_workflow = TRUE)
+```
+
+# Métricas
+
+Antes definamos el set de métricas para evaluar el modelo. En este caso,
+adicional a la precisión general, el ROC_AUC, y el estadístico *kappa* (el cual
+es un poco controversial[^2]) agregaremos la especificidad ya que con base a
+[@kuhn_applied_2013 pag 347]
+
+[^2]: Sobre el estadístico Kappa: [aqui](https://bit.ly/31WOsaL)
+
+Debido a que el motor de kernlab y glm tienen la capacidad de generar predicciones
+continuas de tipo probabilidad, será posible combinar predicciones de clase
+con estas últimas.
+
+
+```{r}
+mset <- metric_set(roc_auc, accuracy, kap, specificity, sensitivity)
+```
+
+## Tuning
+
+Creamos un cluster para correr en paralelo.
+
+```{r, eval=FALSE}
+all_cores <- detectCores(logical = FALSE)
+clusterpr <- makePSOCKcluster(all_cores)
+registerDoParallel(clusterpr)
+set.seed(2021)
+```
+
+
+```{r, echo=FALSE}
+# corrida manual
+ruta <- fs::path_wd("modelos")
+tablero <- board_folder(path = ruta)
+
+# corrida en knit 
+# tablero <- board_folder(path = "./modelos")
+```
+
+
+```{r, echo=FALSE}
+tune_res <- pin_read(board = tablero, name = "tune_res")
+```
+
+
+A continuación realizamos el ajuste de modelos y recetas, definidas en el objeto
+`mg_workflow`, utilizando los remuestreos, el conjunto de métricas y una
+cuadrícula de tamaño 20.
+
+
+```{r, eval=FALSE}
+# 3.94 minutos
+tic()
+tune_res <- mg_workflow %>% 
+	workflow_map(fn = "tune_grid", 
+				verbose   = TRUE,
+				resamples = mg_folds,
+				control   = grid_ctrl,
+				seed      = 2022,
+				metrics   = mset,
+				grid      = 20)
+toc()
+```
+
+
+```{r, eval=FALSE}
+stopCluster(clusterpr)
+unregister()
+```
+
+
+```{r, paged.print = FALSE}
+tune_res
+```
+
+```{r, eval=FALSE, echo=FALSE}
+pin_write(board = tablero,
+			 x     = tune_res,
+			 name  = "tune_res",
+			 type  = "rds",
+			 title = "all_models",
+			 description = "20000 modelos entrenados")
+```
+
+
+
+La columna `r coloring_font("**result**", "#A24000")` contiene  `tune[+]` lo
+cual indica que todos los hiperparámetros fueron identificados correctamente.
+
+```{r}
+(tm <- nrow(collect_metrics(tune_res, summarize = FALSE)))
+```
+
+Se ajustaron un total de **`r tm`** modelos!
+
+Ahora veamos los resultados de las métricas con nuestro conjunto de
+entrenamiento.
+
+```{r, paged.print = FALSE}
+tune_rank <- tune_res %>%
+	rank_results(select_best = TRUE, rank_metric = "sensitivity") %>% 
+	select(modelo = wflow_id, .metric, mean, rank) %>% 
+	pivot_wider(names_from = .metric, values_from = mean) %>% 
+	rename(kappa = kap) %>% 
+	relocate(sensitivity, .after = "rank")
+```
+
+```{r}
+ranking_models <- tune_rank
+ranking_models[, 3:7] <- map(tune_rank %>%
+	 	select(where(is.double)), ~ color_tile("#FC8D59", "lightgreen")(.x))
+```
+
+
+```{r, modelos, paged.print = FALSE}
+ranking_models %>% 
+	tabla(cap = "Ranking de los mejores ajustes con datos de entrenamiento")
+```
+
+<br/>
+
+En la tabla \@ref(tab:modelos) vemos que el color más verde corresponde a la
+métrica de esa columna que obtuvo la mayor puntuación y el color rojo el que 
+obtuvo la menor.
+
+Veamos esto mismo de forma gráfica.
+
+(ref:all-models) Todas las combinaciones de modelos ajustados
+
+```{r, all-models, fig.cap='(ref:all-models)', fig.width=13, fig.asp=0.6}
+autoplot(tune_res, select_best = TRUE) + drako
+```
+
+<br/>
+
+En la figura \@ref(fig:all-models) vemos `r nrow(tune_rank)` combinaciones de
+los mejores modelos con diferentes motores y algoritmos de balanceo. La
+especificidad es la proporción de ceros estimados como ceros
+
+Seleccionemos los mejores modelos de cada tipo, considerando el recall (sensitivity) como
+el principal, seguido de la precisión, kappa y luego el resto.
+
+Seleccionaremos el top 3 de mejores modelos que claramente no se vean
+sobre-ajustados. Un criterio podría ser buscar un buen balance entre especificidad y
+recall.
+
+
+```{r}
+(best <- tune_rank %>% 
+	slice_max(order_by = specificity, n = 3) %>%  
+	pull(modelo) %>% 
+	set_names(.))
+```
+
+```{r}
+metricas_train <- tune_rank %>% 
+	filter(modelo %in% best) 
+```
+
+
+Es importante revisar el orden de los niveles en la variable respuesta, ya que
+al momento de calcular el AUC debemos especificar que evento es el que queremos
+indicar.
+
+```{r}
+contrasts(mg$status)
+```
+
+Crearemos una función para flexibilizar el gráfico de AUC, aunque no sea
+posible (por el momento) generalizarla para los datos de prueba.
+
+```{r}
+roc_kear <- function(top_models, wflow, verdad, evto_pred, nivel = "second") {
+	
+	# tomar en cuenta que `collect_predictions()` puede sumarizar los diversos
+	# resultados sobre las predicciones replicadas fuera de la muestra, es decir,
+	# los resultados se promedian sobre predicciones repetidas
+	.datos <- top_models %>% 
+		imap_dfr(~ {{ wflow }} %>% extract_workflow_set_result(id = .x) %>% 
+		collect_predictions(), .id = "modelo")
+		
+		
+	# calcular el área bajo la curva para cada modelo	
+	auc <- .datos %>%
+		group_by(modelo) %>%
+		roc_auc({{ verdad }}, {{ evto_pred }}, event_level = nivel) %>%
+		select(modelo, auc = .estimate) %>%
+		mutate(mo = str_extract(modelo, "glm|svm|knn"),
+		       por = percent_format(accuracy = 0.01)(auc),
+		 .keep = "used") %>%
+		unite("nombre", c(mo, por), sep = ": ")
+		
+	# graficar ROC	
+	.datos %>%
+		group_by(modelo) %>%
+		roc_curve({{ verdad }}, {{ evto_pred }}, event_level = nivel) %>%
+		ggplot(aes(x = 1 - specificity, y = sensitivity, color = modelo)) +
+		geom_line(size = 1, alpha = 0.5) +
+		geom_abline(lty   = 2,
+				alpha = 0.5,
+				color = "gray50",
+				size  = 1.2) +
+		annotate("text",
+					x = 0.35,
+					y = 0.70,
+					label = auc$nombre[[1]],
+					size  = 10) +
+		annotate("text",
+					x = 0.35,
+					y = 0.65,
+					label = auc$nombre[[2]],
+					size  = 10) +
+	 annotate("text",
+					x = 0.35,
+					y = 0.60,
+					label = auc$nombre[[3]],
+					size  = 10) +
+		drako + theme(legend.position = c(0.5, 0.1)) +
+		labs(title = "Datos de entrenamiento")
+	
+}
+```
+
+Aplicamos la función
+
+(ref:roc) ¿Cómo se ven las curvas de ROC para estos modelos con los datos de entrenamiento?
+
+```{r, roc, fig.cap='(ref:roc)', fig.width=11, fig.asp=0.7}
+roc_train <- roc_kear(
+	top_models = best,
+	wflow      = tune_res,
+	verdad     = status,
+	evto_pred  = .pred_down,
+	nivel      = "second")
+```
+
+```{r}
+roc_train
+```
+
+<br/>
+
+En la figura \@ref(fig:roc) estamos evaluando la tasa de verdaderos positivos
+del evento down.  
+
+Guardemos nuestros mejores modelos de cada motor en una lista
+
+```{r}
+(lista_mejores <- best %>% 
+	map(~ tune_res %>% extract_workflow_set_result(id = .x) %>% 
+					       select_best(metric = "sensitivity")))
+```
+
+Al tenerlos en una lista nos permitirá realizar iteraciones sobre los mismos
+para posteriormente validar resultados con el set de pruebas.
+
+## Hiperparámetros
+
+Habiendo seleccionado los mejores modelos procederemos a
+visualizar la cuadrícula de hiperparámetros que se ajustaron para encontrar los
+valores óptimos.
+
+Solo podremos ver los hiperparámetros para aquellos modelos a los que se le realizó `tune()`,
+en el caso de regresión logística, este no tuvo, por lo que no es posible mostrar esta parte.
+
+### Evolución
+
+```{r}
+grf <- best[str_detect(best, "glm", negate = T)] |> 
+ imap(~ autoplot(tune_res, select_best = TRUE, id = .x) + 
+	drako + labs(title = .y))
+```
+
+
+(ref:knn-cost) Evolución de los hiperparámetros de K-NN
+
+```{r, knn-cost, fig.cap='(ref:knn-cost)', echo=FALSE, fig.width=13, fig.asp=0.6}
+grf[[1]]
+```
+
+<br/>
+
+En la figura \@ref(fig:knn-cost) vemos los diferentes valores de los hiperparámetros
+para este modelo con ajuste de desbalance por submuestreo. Se observan las
+diferentes combinaciones de $k$ con las distintas funciones de distancia. Vemos
+a simple vista que para una máxima especificidad tenemos una función
+`r coloring_font("**inv**", "#A24000")` y 9 vecinos.
+
+(ref:svm-cost) Evolución de los hiperparámetros de SVM lineal
+
+```{r, svm-cost, fig.cap='(ref:svm-cost)', echo=FALSE, fig.width=13, fig.asp=0.6}
+grf[[2]]
+```
+
+<br/>
+
+Vemos en la gráfica \@ref(fig:svm-cost) como evolucionan las métricas establecidas en
+para cada valor del costo $C$ Entre más grande el grado el límite de
+decisión será más flexible.
+
+### Información
+
+Veamos de forma independiente el modelo con los datos de entrenamiento y los
+hiperparámetros seleccionados posterior al tuning
+
+```{r}
+info_models <- best %>% 
+	map(~ tune_res %>% 
+	extract_workflow(id = .x) %>% 
+	finalize_workflow(tune_res %>% 
+							extract_workflow_set_result(.x) %>% 
+							select_best(metric = "sensitivity")) %>% 
+	fit(mg_train) %>% 
+	extract_fit_engine())
+```
+
+```{r}
+(svp <- info_models$smote_simple_svm_l_kernlab)
+```
+
+El primer elemento es un objeto "ksvm" de clase S4 el cual indica lo siguiente:
+
+- La función nos indica que hemos realizado un modelo de clasificación.
+- Es un kernel polinómico con grado `r svp@kernelf@kpar$degree`
+- Con una función de costo $C$ = `r svp@param$C`
+- Tenemos `r svp@nSV` vectores de soporte, 
+
+```{r}
+(knd <- info_models$sobremuestreo_svm_l_kernlab)
+```
+
+- El mejor fue k = `r knd$best.parameters$k`, el cual es impar.
+- La mejor función de distancia ponderada es `r knd$best.parameters$kernel`
+
+```{r}
+(vdk <- info_models$sobremuestreo_glm_logistreg)
+```
+
+## Evaluación
+
+Posterior a esto haremos lo siguiente:
+
+1. Extraer los modelos seleccionados del workflow llamado
+`r coloring_font("**tune_res**", "#A24000")` 
+utilizando la función `extract_workflow()`. Recordemos que un workflow es un
+combinación de receta de preprocesamiento en conjunto con un motor (modelo) a
+utilizar. Los workflows seleccionado serán aquellos que con base a métricas
+revisadas en el paso anterior se consideran óptimos.
+
+2. Con la función `finalize_workflow()` lo que haremos será decirle al workflow
+seleccionado que usaremos los modelos ajustados con datos de entrenamiento
+que contiene los mejores parámetros numéricos encontrados a través del tuning
+usando CV.
+
+3. Con `last_fit()` realizaremos el ajuste con los datos de validación usando
+los modelos previamente seleccionados. Debemos asegurarnos de definir el set
+de métricas que deseamos comprobar, pudiendo agregar nuevas métricas. En este
+caso utilizaremos las previamente definidas.
+
+```{r}
+validation_result_list <- map2(.x = best, .y = lista_mejores, ~ tune_res %>% 
+	extract_workflow(id = .x) %>% 
+	finalize_workflow(.y) %>% 
+	last_fit(split = particion$splits[[1]], metrics = mset))
+```
+
+En la iteración por pares con `map2()` hacemos que el primer modelo que se
+encuentra en el objeto `r coloring_font("**best**", "#A24000")` se finalice
+con el primer modelo contenido en `r coloring_font("**lista_mejores**", "#A24000")`.
+Esta operación garantiza que se realicen los ajustes de los modelos óptimos
+seleccionados al conjunto de validación.
+
+```{r}
+validation_result_list
+```
+
+En esta lista vemos los resultados de los modelos seleccionados ajustados a los
+datos de validación.
+
+4. Haciendo uso de `collect_metrics()` podemos ver las métricas para el conjunto
+de prueba
+
+Guardemos esto para una comparación posterior.
+
+```{r}
+metricas_validation <- validation_result_list %>% 
+	map_dfr(~ collect_metrics(.x), .id = "modelo") %>% 
+	pivot_wider(names_from = .metric, values_from = .estimate) %>%
+	select(-c(.estimator:.config)) %>% 
+	rename(kappa = kap) %>% 
+	relocate(sensitivity, roc_auc, kappa, .after = modelo)
+```
+
+```{r}
+metricas_validation %>% 
+	tabla("Desempeño de los modelos con los datos de validación")
+```
+
+<br/>
+
+5. Con `collect_predictions()` podemos ver cómo podemos esperar que este modelo
+funcione con nuevos datos.
+
+Primero calculemos el AUC utilizando la función `roc_auc()` en la que definimos
+que el evento verdad (*truth*) es la columna *type* y la estimación de
+probabilidad numérica es  `r coloring_font("**.pred_down**", "#A24000")`
+
+```{r, paged.print = FALSE}
+(auc_validation <- validation_result_list %>% 
+	map_dfr(~ collect_predictions(.x), .id = "modelo") %>% 
+	group_by(modelo) %>% 
+	roc_auc(status, .pred_down, event_level = "second") %>% 
+	select(modelo, auc = .estimate) %>%
+	mutate(mo = str_extract(modelo, "glm|svm|knn"),
+		    por = percent_format(accuracy = 0.0100000000)(auc),
+			.keep = "used") %>%
+	unite("nombre", c(mo, por), sep = ": "))
+```
+
+Con el AUC calculado para cada modelo, ya podemos graficar.
+
+(ref:roc-test) ¿Cómo se ven las curvas de ROC para estos modelos en los datos de validacion?
+
+```{r, roc-test, fig.cap='(ref:roc-test)', fig.width=13, fig.asp=0.7}
+roc_validation <- test_result_list %>% 
+	map_dfr(~ collect_predictions(.x), .id = "modelo") %>% 
+	group_by(modelo) %>% 
+    roc_curve(status, .pred_down, event_level = "second") %>%  
+	ggplot(aes(x = 1 - specificity, y = sensitivity, color = modelo)) +
+		geom_line(size = 1, alpha = 0.5) +
+		geom_abline(lty   = 2,
+				alpha = 0.5,
+				color = "gray50",
+				size  = 1.2) +
+ annotate("text",
+					x = 0.35,
+					y = 0.70,
+					label = auc_validation$nombre[[1]],
+					size  = 10) +
+		annotate("text",
+					x = 0.35,
+					y = 0.65,
+					label = auc_validation$nombre[[2]],
+					size  = 10) +
+	 annotate("text",
+					x = 0.35,
+					y = 0.60,
+					label = auc_validation$nombre[[3]],
+					size  = 10) +
+		drako + theme(legend.position = c(0.5, 0.1)) +
+		labs(title = "Datos de validación")
+	
+```
+
+(ref:idf) ¿Cuál de los dos modelos podemos considerar que es mejor en función del AUC?
+
+```{r, idf, fig.cap='(ref:idf)', fig.width=13, fig.asp=0.7}
+list(roc_train, roc_validation) %>% 
+	reduce(.f = `+`) +
+	plot_layout(ncol = 2) +
+   plot_annotation(title = "Diferencias entre AUC para conjuntos de entrenamiento y validación")
+```
+
+<br/>
+
+En el gráfico \@ref(fig:idf) vemos que el AUC del modelo SVM en el conjunto de
+validación es más alto. Vemos que las métricas del conjunto de validación son
+**ligeramente** superiores a las del conjunto de entrenamiento.
+
+### Métricas
+
+Analicemos de forma más numéricas las diferencias entre las métricas obtenidas
+con los datos de entrenamiento versus las obtenidas con los datos de prueba.
+
+```{r}
+comparacion <- metricas_train %>%
+	mutate(datos = "entrenamiento", .after = modelo) %>%
+	select(-rank) %>%
+	bind_rows(metricas_validation %>%
+	mutate(datos = "prueba", .after = modelo))
+```
+
+
+```{r, comp}
+comparacion |> 
+ mutate(across(where(is.numeric), ~ color_tile("#FC8D59", "lightgreen")(.x))) %>% 
+	tabla(cap = "Comparacion de métricas")
+```
+
+```{r}
+mejor_modelo <- comparacion |> 
+ filter(datos == "prueba") |> 
+ slice_max(order_by = sensitivity) |> 
+ pull(modelo)
+```
+
+
+<br/>
+
+En la tabla \@ref(tab:comp) vemos en verde el que obtuvo mayor valor con
+respecto a la métrica de esa columna.  En tres de las cinco métricas el
+modelo `r coloring_font("**smote_simple_svm_l_kernlab**", "#A24000")` del conjunto de
+validación obtuvo mejores resultados.
+
+Veamos una forma diferente de analizar estas métricas:
+
+```{r, comp2}
+metricas_train %>% 
+	select(-rank) %>% 
+	pivot_longer(cols = specificity:sensitivity,
+			names_to = "metrica",
+			values_to = "train") %>% 
+	bind_cols(metricas_validation %>% 
+				 	pivot_longer(cols = specificity:sensitivity,
+					 names_to = "metrica",
+					 values_to = "validacion") %>% 
+				 	select(validacion)) %>% 
+	mutate(delta = validacion - train, 
+		diff_porcentual = percent_format(accuracy = 0.01)(delta)) %>% 
+	tabla(cap = "Métricas de Train contra test")
+```
+
+
+# Selección del Modelo 
+
+El modelo seleccionado es `r resaltar("Support Vector Machine lineal con SMOTE")`
+
+Una vez que tenemos el modelo correcto, lo vamos a probar con los datos de prueba
+
+```{r}
+test_result_list <- map2(.x = best[mejor_modelo], .y = lista_mejores[mejor_modelo], ~ tune_res %>% 
+	extract_workflow(id = .x) %>% 
+	finalize_workflow(.y) %>% 
+	last_fit(split = mg_split, metrics = mset))
+```
+
+
+```{r}
+test_result_list
+```
+
+4. Haciendo uso de `collect_metrics()` podemos ver las métricas para el conjunto
+de prueba
+
+Guardemos esto para una comparación posterior.
+
+```{r}
+metricas_test <- test_result_list %>% 
+	map_dfr(~ collect_metrics(.x), .id = "modelo") %>% 
+	pivot_wider(names_from = .metric, values_from = .estimate) %>%
+	select(-c(.estimator:.config)) %>% 
+	rename(kappa = kap) %>% 
+	relocate(sensitivity, roc_auc, kappa, .after = modelo)
+```
+
+```{r}
+metricas_test %>% 
+	tabla("Desempeño de los modelos con los datos de prueba")
+```
+
+<br/>
+
+5. Con `collect_predictions()` podemos ver cómo podemos esperar que este modelo
+funcione con nuevos datos.
+
+Primero calculemos el AUC utilizando la función `roc_auc()` en la que definimos
+que el evento verdad (*truth*) es la columna *type* y la estimación de
+probabilidad numérica es  `r coloring_font("**.pred_down**", "#A24000")`
+
+```{r, paged.print = FALSE}
+(auc_test <- test_result_list %>% 
+	map_dfr(~ collect_predictions(.x), .id = "modelo") %>% 
+	group_by(modelo) %>% 
+	roc_auc(status, .pred_down, event_level = "second") %>% 
+	select(modelo, auc = .estimate) %>%
+	mutate(mo = str_extract(modelo, "glm|svm|knn"),
+		    por = percent_format(accuracy = 0.0100000000)(auc),
+			.keep = "used") %>%
+	unite("nombre", c(mo, por), sep = ": "))
+```
+
+Con el AUC calculado para cada modelo, ya podemos graficar.
+
+(ref:roc-test) ¿Cómo se ven las curvas de ROC para estos modelos en los datos de validacion?
+
+```{r, roc-test, fig.cap='(ref:roc-test)', fig.width=13, fig.asp=0.7}
+roc_test <- test_result_list %>% 
+	map_dfr(~ collect_predictions(.x), .id = "modelo") %>% 
+	group_by(modelo) %>% 
+    roc_curve(status, .pred_down, event_level = "second") %>%  
+	ggplot(aes(x = 1 - specificity, y = sensitivity, color = modelo)) +
+		geom_line(size = 1, alpha = 0.5) +
+		geom_abline(lty   = 2,
+				alpha = 0.5,
+				color = "gray50",
+				size  = 1.2) +
+ annotate("text",
+					x = 0.35,
+					y = 0.70,
+					label = auc_test$nombre[[1]],
+					size  = 10) +
+		drako + theme(legend.position = c(0.5, 0.1)) +
+		labs(title = "Datos de prueba")
+	
+```
+
+(ref:idf) ¿Cuál de los dos modelos podemos considerar que es mejor en función del AUC?
+
+```{r, idf, fig.cap='(ref:idf)', fig.width=13, fig.asp=0.7}
+list(roc_train, roc_validation, roc_test) %>% 
+	reduce(.f = `+`) +
+	plot_layout(ncol = 3) +
+   plot_annotation(title = "AUC para conjuntos de entrenamiento, validación y prueba")
+```
+
+<br/>
+
+En el gráfico \@ref(fig:idf) vemos que el AUC del modelo SVM en el conjunto de
+validación es más alto. Vemos que las métricas del conjunto de validación son
+**ligeramente** superiores a las del conjunto de entrenamiento.
+
+### Métricas
+
+Analicemos de forma más numéricas las diferencias entre las métricas obtenidas
+con los datos de entrenamiento versus las obtenidas con los datos de prueba.
+
+```{r}
+comparacion <- metricas_train %>%
+	mutate(datos = "entrenamiento", .after = modelo) %>%
+ filter(modelo == mejor_modelo) |> 
+	bind_rows(metricas_test %>%
+	mutate(datos = "prueba", .after = modelo)) |> 
+ select(-rank)
+```
+
+
+```{r, comp}
+comparacion |> 
+ mutate(across(where(is.numeric), ~ color_tile("#FC8D59", "lightgreen")(.x))) %>% 
+	tabla(cap = "Comparacion de métricas")
+```
+
+# Modelo Definitivo
+
+Una vez que tenemos el modelo correcto, con los parámetros seleccionados,
+lo entrenaremos nuevamente con toda la base disponible (train + test) con el
+fin de obtener el modelo definitivo para que lo podamos poner en producción.
+
+```{r}
+modelo_definitivo <- tune_res %>% 
+	extract_workflow(id = mejor_modelo) %>% 
+	finalize_workflow(tune_res %>%
+			extract_workflow_set_result(id = mejor_modelo) %>% 
+			select_best(metric = "sensitivity")) %>% 
+	fit(mg)
+```
+
+```{r}
+modelo_definitivo
+```
+
+La variación de este modelo final con respecto al modelo de entrenamiento está
+en la `r coloring_font("**minimal misclassification**", "#A24000")`. El resto
+de valores se mantienen iguales.
+
+# Conclusiones
+
+- Se decidió comprobar únicamente los dos mejores modelos de cada algoritmo con
+los datos de prueba, teniendo en cuenta de que 
+`r rlt("no necesariamente los modelos con mejor desempeño en el entrenamiento tendrían el mejor desempeño con los datos de prueba", "#F39C12")`.
+Esto lo realizamos por practicidad.
+
+- El modelo seleccionado fue `r rlt(texto = "K-NN simple con ajuste de balance SMOTE", color = "#F39C12")`.
+
+- El modelo K-NN presentó con los datos de validación un `r rlt("desempeño ligeramente superior", "#F39C12")`
+al de SVM, por lo que su selección se basó también en la parsimonia.
+
+- Es probable que `r rlt("no tengamos overfitting", "#F39C12")` debido a que
+los resultados de las métricas de desempeño para el entrenamiento y prueba son
+bastante similares.  Aun no sabemos que tanto distante o cercanos deben estar
+las métricas para considerar que son parecidas.
+
+- La selección de los modelos se basó en la `r rlt("especificidad", "#F39C12")`,
+sin embargo, el análisis del AUC se realizó sobre la predicción de spam y no
+sobre la capacidad de los modelos de predecir correctamente el correo que **no
+es spam**.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

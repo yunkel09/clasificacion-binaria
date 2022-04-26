@@ -13,3 +13,7 @@ RnwWeave: knitr
 LaTeX: XeLaTeX
 
 StripTrailingWhitespace: Yes
+
+PythonType: conda
+PythonVersion: 3.10.4
+PythonPath: C:/Users/wchavarria/anaconda3/envs/deep/python.exe
