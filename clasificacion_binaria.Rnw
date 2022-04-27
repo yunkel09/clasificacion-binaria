@@ -20,11 +20,11 @@
 
 \usepackage[no-math]{fontspec}
 \usepackage{bm}
-\setmainfont{SouvenirStd-Light.otf}[
+\setmainfont{CharterBT-Roman.otf}[
 Ligatures=TeX,
-BoldFont = Souvenir-Medium.otf,
-ItalicFont = SouvenirStd-LightItalic.otf,
-BoldItalicFont = Souvenir-BoldItalic.otf]
+BoldFont = CharterBT-Bold.otf,
+ItalicFont = CharterBT-Italic.otf,
+BoldItalicFont = CharterBT-BoldItalic.otf]
 
 
 \setmonofont[Scale=0.8,
@@ -57,7 +57,7 @@ BoldItalicFont = Souvenir-BoldItalic.otf]
 % debemos crear una carpeta que se llame imágenes
 \usepackage{graphicx}
 \graphicspath{ {./imagenes/} }
-% \usepackage{svg}
+\usepackage{svg}
 % ==============================================================================
 
 
@@ -247,6 +247,7 @@ BoldItalicFont = Souvenir-BoldItalic.otf]
 % AGREGAR COLOR DE FONDO =======================================================
 \usepackage{framed}
 \colorlet{shadecolor}{fondo}
+\setlength{\OuterFrameSep}{1pt}
 % ==============================================================================
 
 
@@ -309,9 +310,9 @@ BoldItalicFont = Souvenir-BoldItalic.otf]
 
 % VARIABLES GENERALES ==========================================================
 \def\maestria{MASTER IN APPLIED DATA SCIENCE}
-\def\titulo{Simulación Montecarlo}
+\def\curso{Data Mining and Machine Learning I}
 \def\autor{William Chavarría Zamora}
-\def\fecha{26 de Febrero de 2022}
+\def\fecha{18 de Abril de 2022}
 % ==============================================================================
 
 
@@ -387,21 +388,26 @@ knit_hooks$set(document = function(x) {sub('\\usepackage[]{color}', '\\usepackag
                                        x, fixed = TRUE)})
 
 # cargar paquetes
-import::from(magrittr, "%T>%", "%$%", "%<>%", .into = "operadores")
-import::from(zeallot, `%<-%`)
-import::from(fs, dir_ls)
-import::from(nortest, ad.test, pearson.test, sf.test, lillie.test)
-import::from(DescTools, JarqueBeraTest)
-import::from(broom, tidy)
-import::from(kableExtra, .except = "group_rows")
-import::from(cowplot, .except = "stamp")
-import::from(colorblindr, scale_fill_OkabeIto, palette_OkabeIto)
+import::from(magrittr, "%T>%", "%$%", .into = "operadores")
+import::from(lubridate, .except = c("intersect", "setdiff", "union"))
+import::from(conectigo, conectar_msql, cargar_fuentes)
+import::from(dbplyr, in_schema)
+import::from(statistigo, coloring_font)
+import::from(skimr, skim)
+import::from(formattable, color_tile)
 import::from(patchwork, plot_layout, plot_annotation)
-import::from(conectigo, cargar_fuentes)
-import::from(ggridges, geom_density_ridges_gradient)
 import::from(caret, nearZeroVar)
-import::from(EnvStats, rlnormTrunc)
-pacman::p_load(skimr, janitor, triangle, scales, fitdistrplus, tidyverse)
+import::from(parallel, detectCores, makePSOCKcluster, stopCluster)
+import::from(tidytext, reorder_within, scale_y_reordered, scale_x_reordered)
+import::from(doParallel, registerDoParallel)
+import::from(cowplot, .except = "stamp")
+import::from(kableExtra, .except = "group_rows")
+import::from(DataExplorer, plot_intro, plot_bar, plot_density)
+import::from(colorblindr, scale_color_OkabeIto, scale_fill_OkabeIto)
+import::from(GGally, ggpairs, wrap)
+import::from(DataExplorer, plot_intro, plot_bar, plot_density)
+import::from(ggstatsplot, ggbetweenstats, gghistostats, ggbarstats, ggwithinstats)
+pacman::p_load(fst, janitor, tictoc, pins, themis, tidymodels, tidyverse)
 
 # fuentes del paquete conectigo
 cargar_fuentes()
@@ -427,9 +433,79 @@ furia <- yunkel +
  theme(axis.line = element_blank(),
        panel.grid.major.y = element_line(color = "#e5e5e5"))
 
+
+
+# Funciones
+
+## extraer galonaje de la base de datos
+extraer_retina <- function(conx, siteid, fecha_inicio, fecha_fin) {
+
+ tbl(conx, in_schema("retina", "data_nci")) |>
+  filter(
+   fecha_hora >= fecha_inicio,
+   fecha_hora <=  fecha_fin,
+   sitio_id == siteid,
+   nombre_sensor == "combustible"
+  ) |>
+  select(fecha  = fecha_hora,
+         siteid = sitio_id,
+         sensor = nombre_sensor,
+         valor
+  ) |>
+  group_by(siteid) |>
+  summarise(inicio_powercut = fecha_inicio,
+            fin_powercut = fecha_fin,
+            galonaje = max(valor, na.rm = TRUE))
+}
+
+
+## barra
+barra <- function(df, x) {
+
+	dfx <- df %>%
+		tabyl({{x}}) %>%
+		adorn_pct_formatting()
+
+	dfx %>%
+		ggplot(aes(y = {{x}}, x = n)) +
+		geom_col(fill = "#0072B2", width = 0.8) +
+		# geom_text(aes(label = str_c(n, " ", "(", percent, ")")),
+		# 			 hjust = 1.1,
+		# 			 size = 4,
+		# 			 color = "white") +
+		# 			 # fontface = "bold") +
+		scale_x_continuous(name = NULL, expand = c(0, 0)) +
+		scale_y_discrete(name = NULL, expand = c(0, 0.5)) +
+		# coord_cartesian(clip = "off") +
+		theme_minimal_vgrid(font_family = "yano") +
+		theme(axis.text.y = element_text(size = 14),
+				plot.title = element_text(size = 22, face = "bold"))
+}
+
+
+# agregar línea loess a las gráficas ggpairs
+loess_lm <- function(data, mapping, ...){
+
+ggplot(data = data, mapping = mapping) +
+    geom_point(alpha = 0.9) +
+    stat_smooth(formula = y ~ x,
+                method = "lm",
+                se = TRUE,
+                color = "blue",
+                fill = "blue",
+                size = 0.5,
+                alpha = 0.2,
+                linetype = "longdash",
+                ...)
+}
+
+
 # scales facilita el formato en los gráficos
 porcentaje <- label_percent(decimal.mark = ".", suffix = "%", accuracy = 0.1)
 dol <- dollar_format(accuracy = 0.1)
+
+# variables
+colorx <- c(rojo = "#F4354D", amarillo = "#FCA108", verde = "#00AB40")
 
 # establecer tema por defecto
 theme_set(yunkel)
@@ -446,11 +522,11 @@ tabla <- function(df, cap = "prueba") {
 @
 
 % aquí va la portada
-<<child='secciones/00_portada.Rnw'>>=
 
-@
-\renewcommand{\contentsname}{Índice}
-\tableofcontents
+
+
+% \renewcommand{\contentsname}{Índice}
+% \tableofcontents
 
 %
 \addtocontents{toc}{\protect\thispagestyle{empty}} % quitar número de página
@@ -458,11 +534,18 @@ tabla <- function(df, cap = "prueba") {
 \setcounter{page}{1} % establecer pag 1
 
 % aquí van las secciones
-
-<<child='secciones/10_introduccion.Rnw'>>=
+<<child='secciones/20_metodologia.Rnw'>>=
 
 @
 
+<<child='secciones/30_resultados.Rnw'>>=
+
+@
+
+
+<<child='secciones/50_bibliografia.Rnw'>>=
+
+@
 
 \end{document}
 

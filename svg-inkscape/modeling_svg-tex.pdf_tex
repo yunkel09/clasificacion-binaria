@@ -1,0 +1,87 @@
+%% Creator: Inkscape 1.0 (4035a4fb49, 2020-05-01), www.inkscape.org
+%% PDF/EPS/PS + LaTeX output extension by Johan Engelen, 2010
+%% Accompanies image file 'modeling_svg-tex.pdf' (pdf, eps, ps)
+%%
+%% To include the image in your LaTeX document, write
+%%   \input{<filename>.pdf_tex}
+%%  instead of
+%%   \includegraphics{<filename>.pdf}
+%% To scale the image, write
+%%   \def\svgwidth{<desired width>}
+%%   \input{<filename>.pdf_tex}
+%%  instead of
+%%   \includegraphics[width=<desired width>]{<filename>.pdf}
+%%
+%% Images with a different path to the parent latex file can
+%% be accessed with the `import' package (which may need to be
+%% installed) using
+%%   \usepackage{import}
+%% in the preamble, and then including the image with
+%%   \import{<path to file>}{<filename>.pdf_tex}
+%% Alternatively, one can specify
+%%   \graphicspath{{<path to file>/}}
+%% 
+%% For more information, please see info/svg-inkscape on CTAN:
+%%   http://tug.ctan.org/tex-archive/info/svg-inkscape
+%%
+\begingroup%
+  \makeatletter%
+  \providecommand\color[2][]{%
+    \errmessage{(Inkscape) Color is used for the text in Inkscape, but the package 'color.sty' is not loaded}%
+    \renewcommand\color[2][]{}%
+  }%
+  \providecommand\transparent[1]{%
+    \errmessage{(Inkscape) Transparency is used (non-zero) for the text in Inkscape, but the package 'transparent.sty' is not loaded}%
+    \renewcommand\transparent[1]{}%
+  }%
+  \providecommand\rotatebox[2]{#2}%
+  \newcommand*\fsize{\dimexpr\f@size pt\relax}%
+  \newcommand*\lineheight[1]{\fontsize{\fsize}{#1\fsize}\selectfont}%
+  \ifx\svgwidth\undefined%
+    \setlength{\unitlength}{432bp}%
+    \ifx\svgscale\undefined%
+      \relax%
+    \else%
+      \setlength{\unitlength}{\unitlength * \real{\svgscale}}%
+    \fi%
+  \else%
+    \setlength{\unitlength}{\svgwidth}%
+  \fi%
+  \global\let\svgwidth\undefined%
+  \global\let\svgscale\undefined%
+  \makeatother%
+  \begin{picture}(1,0.3125)%
+    \lineheight{1}%
+    \setlength\tabcolsep{0pt}%
+    \put(0,0){\includegraphics[width=\unitlength,page=1]{modeling_svg-tex.pdf}}%
+    \put(0.05744792,0.27173611){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}a\end{tabular}}}}%
+    \put(0.0863368,0.27173611){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}b\end{tabular}}}}%
+    \put(0.17769097,0.27173611){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}c\end{tabular}}}}%
+    \put(0.20190973,0.27173611){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}d\end{tabular}}}}%
+    \put(0.54864581,0.27173611){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}e\end{tabular}}}}%
+    \put(0.56782987,0.27173611){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}f\end{tabular}}}}%
+    \put(0.59817706,0.27173611){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}g\end{tabular}}}}%
+    \put(0.66010417,0.27173611){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}h\end{tabular}}}}%
+    \put(0.92746523,0.27173611){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}i\end{tabular}}}}%
+    \put(0.94399304,0.27173611){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}j\end{tabular}}}}%
+    \put(0.22421874,0.14534722){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Model\end{tabular}}}}%
+    \put(0.23614584,0.12401042){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}#1\end{tabular}}}}%
+    \put(0.31090278,0.14534722){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Model\end{tabular}}}}%
+    \put(0.32282986,0.12401042){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}#2\end{tabular}}}}%
+    \put(0.39756944,0.14534722){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Model\end{tabular}}}}%
+    \put(0.4095139,0.12401042){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}#3\end{tabular}}}}%
+    \put(0.48013888,0.14534722){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Model\end{tabular}}}}%
+    \put(0.49206596,0.12401042){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}#4\end{tabular}}}}%
+    \put(0.70715279,0.14534722){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Model\end{tabular}}}}%
+    \put(0.71909724,0.12401042){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}#2\end{tabular}}}}%
+    \put(0.84338543,0.14534722){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Model\end{tabular}}}}%
+    \put(0.85531251,0.12401042){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}#4\end{tabular}}}}%
+    \put(0.06095486,0.08215279){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Time\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=2]{modeling_svg-tex.pdf}}%
+    \put(0.1911632,0.02855902){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}EDA\end{tabular}}}}%
+    \put(0.27168404,0.02855902){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Quantitative Analysis\end{tabular}}}}%
+    \put(0.46621529,0.02855902){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Feature Engineering\end{tabular}}}}%
+    \put(0.65656249,0.02855902){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Model Fit\end{tabular}}}}%
+    \put(0.76984374,0.02855902){\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Model Tuning\end{tabular}}}}%
+  \end{picture}%
+\endgroup%

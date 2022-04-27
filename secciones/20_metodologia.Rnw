@@ -1,0 +1,227 @@
+\chapter{Material y métodos}
+
+En la figura \ref{fig:baterias} se observan los componentes principales del sistema eléctrico
+de un sitio de transmisión.  La variable respuesta o la etiqueta es si
+\emph{Telecom Equipment} se apagó debido a falta de energía eléctrica. Con base a los
+elementos que constituyen todo el sistema eléctrico determinaremos que \emph{features}
+podrían ser útiles.
+
+\vspace{3em}
+
+\begin{figure}[H]
+\includegraphics[width = \linewidth]{telecom4}
+\caption{Diagrama unifilar general}
+\fte{Departamento de Ingeniería - Tigo Guatemala}
+   \label{fig:baterias}
+\end{figure}
+
+\section{Tablas}
+
+<<>>=
+atr_raw <- read_csv("atributos.csv", lazy = FALSE, name_repair = make_clean_names)
+@
+
+<<attr>>=
+atr_raw |>
+ pivot_wider(names_from = "name", values_from = "value") |>
+ clean_names() %>%
+ rename(mtto   = periodicidad_mg,
+        tanque = capacidad_tanque_motor) |>
+ slice_sample(n = 7) |>
+ tabla(cap = "Atributos")
+@
+
+<<>>=
+raw_mg <- read_csv("mg.csv", lazy = FALSE,
+                   name_repair = make_clean_names) |>
+ select(status = is_affected,
+        siteid = cilocation,
+        inicio = ocurred_on_nt,
+        fin        = cleared_on_nt,
+        duracion   = duration,
+        arranco    = is_transference,
+        working    = running_on_mg)
+@
+
+<<tabla-mg>>=
+raw_mg %>%
+ slice_sample(n = 5) |>
+ kbl(booktabs = TRUE, linesep = "", caption = "Motogenerador") %>%
+ kable_paper(full_width = F) %>%
+ kable_styling(latex_options = "HOLD_position", table.envir = "float")
+@
+
+<<include=FALSE>>=
+galonaje <- read_fst("galonaje.fst") |> as_tibble()
+@
+
+\section{Feature selection}
+
+\begin{table}[H]
+ \renewcommand{\arraystretch}{2}
+ \footnotesize
+     \centering
+     \ttfamily
+     \begin{tabular}{| P{2cm} | P{2cm} | m{11cm} |}
+     \hline
+          {\centering \textbf{Tabla}} & {\centering \textbf{Feature}} & {\centering \textbf{¿Por qué la incluimos?}} \\
+          \hline
+
+          Motogenerador & \va{status} &
+
+          Indica si el sitio tuvo afectación (down) o no (up). Variable respuesta que interesa
+          predecir.\\
+
+          \hline
+
+          Motogenerador & \va{siteid} &
+
+          Llave primaria. Nos permitirá realizar las uniones entre las diferentes tablas.\\
+
+          \hline
+
+          Motogenerador & \va{inicio} &
+
+          Inicio de la interrupción de energía. Se utilizará para hacer
+          \emph{feature engineering}.\\
+
+          \hline
+
+          Motogenerador & \va{duracion} &
+
+          Duración en horas de la interrupción de energía eléctrica.  Este valor no es
+          igual a la diferencia entre el inicio y el fin ya que hay otros factores en la
+          medición del sistema que hace que difieran ligeramente. \\
+
+          \hline
+
+          Motogenerador & \va{arranco} &
+
+          Un sensor ubicado en el \emph{Automatic Transfer Switch} (ATS) determina si el
+          motogenerador arrancó o no.  En combinación con la periodicidad del mantenimiento
+          es posible que el modelo pueda calcular el peso de esta variable en la forma del
+          desempeño de los MG. \\
+
+          \hline
+
+          Motogenerador & \va{working} &
+
+          De todo el tiempo que el sitio estuvo sin energía, cuanto tiempo en horas trabajó
+          el MG para respaldar el sitio. El tiempo de trabajo junto con el galonaje al
+          momento de la falla podría generar el patrón que nos indique si el sitio se va a
+          caer o no.  Un mayor tiempo de funcionamiento con menos galonaje al momento de la
+          falla podría indicar una mayor probabilidad de que el sitio se caiga.\\
+
+          \hline
+
+          Atributos & \va{siteid} &
+
+          Llave primaria. Nos permitirá realizar las uniones entre las diferentes tablas.\\
+
+          \hline
+
+          Atributos & \va{periodicidad\_mg} &
+
+          Tiempo en meses en que se le da mantenimiento al motor. Puede impactar el desempeño
+          del motor y su correcto funcionamiento. En ocasiones cuando se va la energía
+          comercial el motor no arranca debido a un fallo asociado posiblemente a falta de
+          mantenimiento.\\
+
+          \hline
+
+          Atributos & \va{tipo\_bateria} &
+
+          Existen dos tipos de baterías en los sitos. Las de plomo y las de litio. Cada una
+          tiene características diferentes en cuanto a velocidad de carga y capacidad. El
+          tipo de batería puede determinar la autonomía de un sitio en cuanto a capacidad de
+          mantener los equipos funcionando por más tiempo.\\
+
+          \hline
+
+          Atributos & \va{tanque} &
+
+          Capacidad del tanque de combustible del motogenerador en galones. Entre mayor es
+          la capacidad del tanque es probable que un sitio cuente con más tiempo de
+          autonomía.\\
+
+         \hline
+          \end{tabular}
+     \caption{Selección inicial de features}
+ \end{table}
+
+\subsection{¿Por qué estos features?}
+
+Para determinar estos features iniciales se sostuvieron entrevistas con tres SMEs
+(\emph{Subject-Matter Experts}). Un experto en mantenimiento de sitios, un especialista en
+energía y el \emph{owner} de las tablas, un ingeniero de datos que comprende que es cada
+feature.
+
+\begin{snugshade}
+La razón para seleccionar estos features es que estos son los \textbf{únicos} datos
+disponibles que actualmente se capturan y que, aunque no son perfectos, podrían ayudar a
+predecir si un sitio va a fallar por temas de energía.  Un modelo causal a través de un
+grafo se puede observar en el anexo.
+\end{snugshade}
+
+En el análisis exploratorio podremos investigar en profundidad las relaciones entre los
+predictores y la respuesta para tener una mejor idea de que features podrían funcionar mejor.
+
+\begin{snugshade}
+La premisa de trabajo aquí es que generalmente es mejor tener menos predictores en un modelo.
+El objetivo del \emph{feature selection} será entonces
+
+\begin{quote}
+\textbf{"reducir la cantidad de predictores en la medida de lo posible sin comprometer el
+rendimiento predictivo."} \citep{kuhn_feature_2019}
+\end{quote}
+
+\end{snugshade}
+
+En las tablas \ref{tab:attr} y\ref{tab:tabla-mg} se observa que hay features que no se
+consideraron. Estas son \va{tipo\_motor} y \va{motor\_generador}. La primera se
+obvio debido a que, aunque es posible que si un motor este a la intemperie este pueda tener
+algún impacto en el consumo, no se considera significativo.  La feature \va{motor\_generador}
+solo sirve para determinar si el sitio cuenta o no con MG. Aunque parece importante, solo nos
+servirá para delimitar el estudio a sitios que si cuentan con MG por las razones expuestas en
+la introducción.
+
+\section{Transformaciones}
+
+Para determinar que tipo de transformaciones eran necesarias se realizó un análisis
+exploratorio de cada tabla y teniendo en mente una representación mental de nuestra
+función objetivo, el tipo de problema que tenemos (clasificación binaria) y los modelos que
+podríamos utilizar dado los features que tenemos, realizamos algunas transformaciones
+específicas para cada caso.
+
+\subsection{Data Prep}
+
+Previo al preprocesamiento (aka transformaciones) necesarias para ajustar determinados
+tipos de modelo, se realizó una preparación general que culminó con la unión (\emph{data
+blending}) de las distintas tablas.  La preparación previa incluyó convertir las variables
+categóricas en tipo \emph{factor}\footnote{estructura de datos específica del framework
+utilizado}, filtrado y renombrado de algunos features. También se convirtió el tiempo que
+estaba en horas a minutos para poder entender mejor la duración y visualizar mejor los
+atípicos.
+
+\subsection{Feature Engineering}
+
+A partir de la fecha de inicio de la interrupción de energía se crearon tres nuevos features:
+hora, día y mes.  Esto podría contener un patrón temporal que ayude a determinar al modelo
+si en ciertos momentos es más probable que el apagón duré más tiempo.  También con el mes
+podemos capturar la época del año (estación). En invierno es probable que hayan más
+interrupciones que en verano.
+
+\section{Framework}
+
+Para realizar este estudio se utilizó el lenguaje R y el framework tidymodel.  Así mismo
+se utilizó como referencia el proceso definido en la figura\ref{fig:modelpr}
+
+\begin{figure}[H]
+\includegraphics[width = \linewidth]{modelado}
+\caption{Proceso de modelado}
+   \label{fig:modelpr}
+\end{figure}
+
+
+
+

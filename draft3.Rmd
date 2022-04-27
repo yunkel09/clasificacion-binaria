@@ -205,18 +205,6 @@ baterias_raw <- read_csv("baterias.csv", lazy = FALSE, name_repair = make_clean_
 ```
 
 ```{r}
-baterias <- baterias_raw |> 
- select(siteid,
-        inicio = occurred_on,
-        fin = cleared_on,
-        duration,
-        status = root_cause,
-        rob,
-        powercut)
-```
-
-
-```{r}
 atr_raw <- read_csv("atributos.csv", lazy = FALSE, name_repair = make_clean_names)
 ```
 
@@ -229,15 +217,14 @@ tipo_bat <- c(PLOMO = 1L, LITIO = 0L)
 tanque_baterias <- atr_raw |> 
  pivot_wider(names_from = "name", values_from = "value") |>
  clean_names() |> 
- rename(siteid = cilocation,
-        mtto = periodicidad_mg,
+ rename(mtto = periodicidad_mg,
         tanque = capacidad_tanque_motor) |> 
  filter(motor_generador == "SI") |> 
  select(-motor_generador, -tipo_motor) |> 
  mutate(across(tipo_bateria, recode, !!!tipo_bat),
         tanque = case_when(
-         siteid == "GUA030" & is.na(tanque) ~ "155",
-         siteid == "GUA073" & is.na(tanque) ~ "157",
+         siteid == "GUA030" & is.na(tanque)    ~ "155",
+         siteid == "GUA073" & is.na(tanque)    ~ "157",
          siteid == "GUA958" & tanque == "OTRO" ~ "157",
          TRUE ~ tanque),
          across(tanque, parse_integer))

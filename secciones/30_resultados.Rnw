@@ -1,420 +1,218 @@
 \chapter{Resultados}
 
+<<>>=
+tipo_bat <- c(PLOMO = 1L, LITIO = 0L)
+@
+
+<<>>=
+# preparación de tabla "atributos"
+tanque_baterias <- atr_raw |>
+ pivot_wider(names_from = "name", values_from = "value") |>
+ clean_names() |>
+ rename(mtto = periodicidad_mg,
+        tanque = capacidad_tanque_motor) |>
+ filter(motor_generador == "SI") |>
+ select(-motor_generador, -tipo_motor) |>
+ mutate(across(tipo_bateria, recode, !!!tipo_bat),
+        across(mtto:tipo_bateria, as.factor),
+        tanque = case_when(
+         siteid == "GUA030" & is.na(tanque) ~ "155",
+         siteid == "GUA073" & is.na(tanque) ~ "157",
+         siteid == "GUA958" & tanque == "OTRO" ~ "157",
+         TRUE ~ tanque),
+         across(tanque, parse_integer))
+@
+
+<<>>=
+# limpieza y feature engineering
+mg_clean <- raw_mg |>
+ mutate(
+  status = if_else(status >= 1, "down", "up"),
+  status = factor(status, levels = c("up","down")),
+  across(c("duracion", "working"), ~ .x * 60),
+  across(inicio:fin, ymd_hms),
+  across(arranco, as.factor),
+  dia = as.factor(day(inicio)),
+  mes = as.factor(month(inicio)),
+  .after = "fin")
+@
+
+<<>>=
+# la fecha de inicio y de fin sirven para poder extraer el galonaje que tenía el MG al
+# momento de la interrupción del servicio.
+mg_set <- mg_clean |>
+ select(siteid,
+        fecha_inicio = inicio,
+        fecha_fin    = fin)
+@
+
+<<eval=FALSE>>=
+# debido a que el proceso de extraer los datos de la BD es muy tardado, este chunk no
+# lo corremos, sino solo una vez para luego guardar los datos en un formato binario.
+galonaje2 <- pmap_dfr(mg_set, ~ extraer_retina(conx = con,
+                                              siteid = ..1,
+                                              fecha_inicio = ..2,
+                                              fecha_fin = ..3) |>
+      collect()) |>
+ mutate(across(contains("powercut"), ymd_hms))
+@
+
+<<>>=
+galonaje <- read_fst("./galonaje.fst") |> as_tibble() |>
+ rename(inicio = inicio_powercut, fin = fin_powercut)
+@
+
+<<>>=
+# mg <-
+mg <- mg_clean |>
+ left_join(tanque_baterias, by = "siteid")
+@
+
+
 \section{Análisis Exploratorio}
 
-<<>>=
-# parámetros para graficar distribuciones
-eventos_n <- eventos %>% select(where(is.numeric))
-sitios_n  <- sitios %>% select(where(is.numeric))
-pal       <- palette_OkabeIto[1:ncol(eventos_n)]
-ndv       <- names(eventos_n)
+\subsection{Estructura}
 
+<<>>=
+mg %>% glimpse()
 @
+
+\subsection{Variable dependiente}
 
 \begin{figure}[H]
-<<fig.width=7, fig.asp=1>>=
-# graficar distribuciones de la muestra
-c(p1, p2, p3) %<-% map2(.x = ndv, .y = pal, ~ estimar_densidad(df = eventos,
-                                                               d = .x, color = .y))
-p4 <- estimar_densidad(df = sitios, d = "costo_kwh", color = palette_OkabeIto[7])
-p1 + p2 + p3 + p4 + plot_annotation(title = "Análisis de Distribución", 
-                    subtitle = "Estimación de densidad no paramétrica")
-
+<<>>=
+mg |>
+ barra(status) +
+ labs(title = "Clasificación desequilibrada")
 @
-\caption{Distribuciones}
-   \label{fig:dis1}
+
+\caption{El desafío de trabajar con conjuntos de datos desequilibrados es que la mayoría de
+las técnicas de aprendizaje automático ignorarán y, a su vez, tendrán un rendimiento
+deficiente en la clase minoritaria, aunque normalmente lo más importante es el rendimiento en
+la clase minoritaria.}
+   \label{fig:desbalance}
 \end{figure}
 
-<<>>=
-# calcular estadísticos de la muestra por separado
-est_eventos <- eventos |> select(where(is.numeric)) |> resumir()
-est_sitios  <- sitios |> select(where(is.numeric)) |> resumir()
-est_totales <- est_eventos |> bind_rows(est_sitios)
+En el gráfico \ref{fig:desbalance} se observa que la variable no está equilibrada. La clase
+\va{up} tiene más casos que la clase \va{down}. \textbf{Si no balanceamos los datos entonces
+lo que pasará es que nuestro modelo aprenderá de manera muy eficaz sobre cómo predecir el
+caso negativo, es decir, cuando un sitio no se cae}
 
-@
-
-<<resop>>=
-# tabla de estadísticos muestrales
-est_totales |> tabla("Resumen Estadístico tabla de Eventos")
-
-@
-
-En la tabla \ref{tab:resop} vemos que la diferencia entre la cantidad de amperios máximos que
-se puede alcanzar en modo de falla en de 22 en comparación con el modo normal. Se observa
-que en modo de falla la media se incrementa unos 14 amperios. 
-
-\section{Análisis Confirmatorio}
-
-\subsection{Bondad de Ajuste}
-
-Con base a \citep[pag. ~2]{delignette-muller_fitdistrplus_2015}
-
-\begin{quote}
-"Antes de ajustar una o más distribuciones a un conjunto de datos, generalmente es necesario
-elegir buenos candidatos entre un conjunto predefinido de distribuciones. Esta elección puede
-estar guiada por el conocimiento de los procesos estocásticos que rigen la variable modelada,
-o, en ausencia de conocimiento sobre el proceso subyacente, por la observación de su
-distribución empírica.[...]"
-\end{quote}
+\subsection{Atípicos}
 
 <<>>=
-# definir distribuciones candidatas
-tipodis <- c("norm", "lnorm", "gamma")
-
+var_ok <- mg |>
+ nearZeroVar(saveMetrics = T) |>
+ rownames_to_column("var") %>%
+ filter(!if_any(zeroVar:nzv, ~ .x == TRUE)) |>
+ pull(var)
 @
 
-En el apéndice \ref{appendix:bondad} podemos ver los resultados de todas las pruebas
-realizadas a cada una de las variables de dataset.  El código de la implementación de estas
-pruebas se encuentra en el apéndice
-% \ref{appendix:allcode}
-para su referencia. 
+Debido a que las variables están en diferentes magnitudes y lo que nos interesa es evaluar la
+presencia de atípicos, realizaremos una transformación a los valores utilizando la
+\textbf{transformación del logaritmo ajustado}: $log(Y + 1)$. De esta forma los valores con 1
+se convertirán en cero al aplicar el logaritmo.
 
 <<>>=
-# generar tablas con métricas para cada distribución
-eve_gof <- validar_gof(df = eventos_n, tipodis = tipodis)
-sit_gof <- validar_gof(df = sitios_n, tipodis = tipodis)
-total_gof <- bind_rows(eve_gof, sit_gof)
-puntuacion_gof <- total_gof |> scoring_gof()
-
-@
-
-<<bondad>>=
-# imprimir tabla con puntuaciones
-puntuacion_gof |> tabla("Distribución más probable con base a scoring")
-
-@
-
-Aunque en la gráfica \ref{fig:dis1} y en la tabla \ref{tab:bondad} la distribución del
-tiempo aparenta seguir una distribución log-normal, en la práctica sabemos que esto no es
-así. El tiempo se distribuye de una forma diferente.  Para efectos prácticos, diremos que
-la duración de la falla tiene una distribución equiprobable que estará determinada por
-los parámetros de \texttt{min} y \texttt{max} de la muestra.
-
-\section{Frecuencia de las fallas}
-
-<<fallas>>=
-# cuantas fallas se dieron en cada sitio
-por_sitio |> rowid_to_column(var = "item") |> 
- tabla("Cantidad de fallas por cada sitio en periodo de evaluación (4 meses")
-
-@
-
-En la tabla \ref{tab:fallas} vemos que en los cuatro meses de evaluación fallaron 17 sitios
-distintos del total de 30, es decir un 56\%.  Algunos de ellos llegaron a tener en este
-periodo hasta 11 fallas. El total de fallas registradas en el periodo de evaluación fue de
-68.
-
-<<frecuencia>>=
-# imprimir tabla de eventos
-frecuencia_eventos |> tabla("Distribución de probabilidades por sitio")
-
-@
-
-En la tabla \ref{tab:frecuencia} se ha unido la tabla de sitios con la tabla de eventos para
-poder obtener las frecuencias relativas.  Esto es útil para poder calcular la
-\textbf{esperanza matemática}. 
-
-\section{Simulación}
-
-Crearemos las distribuciones de entrada con base a los resultados obtenidos en el análisis
-exploratorio y en las pruebas de bondad de ajuste de la tabla \ref{tab:bondad}. 
-
-Validemos que las distribuciones creadas con los números aleatorios se corresponden
-visualmente con lo esperado.
-
-<<>>=
-# plantar semilla y configurar número de repeticiones
-set.seed(2021)
-nreps <- 2e5
-
+sl <- mg %>%
+ select(all_of(var_ok)) %>%
+ select(status, duracion, working, tanque) |>
+ mutate(across(where(is.numeric), ~ log(.x + 1)))
 @
 
 <<>>=
-# extraer estadísticos de la muestra
-media_costo <- mean(sitios$costo_kwh)
-desvi_costo <- sd(sitios$costo_kwh)
-min_duracio <- min(eventos$duracion)
-max_duracio <- max(eventos$duracion)
-
+slice_sample(sl, n = 5) |> tabla(cap = "Visualización de atípicos")
 @
 
-<<>>=
-# generar distribuciones con números aleatorios para los costos y duración
-costo_kwh <- rnorm2(n = nreps, mean = media_costo, sd = desvi_costo)
-duracion  <- runif(n  = nreps, min = min_duracio, max = max_duracio)
-
-@
-
-<<>>=
-# procedimiento para crerar las distribuciones log-normal truncadas
-distribuciones <-  eventos_n |> 
- select(-duracion) |> 
- parametros_lognormal() |> 
- select(-var) |> 
- pmap(rlnormTrunc, n = nreps) |> 
- append(list(costo_kwh, duracion)) |> 
- set_names(c("operacion", "falla", "costo_kwh", "duracion")) |> 
- bind_rows(.id = "var")
-
-
-@
-
-
-<<>>=
-# imprimir la tabla con las nuevas variables generadas
-distribuciones |> 
- slice(1:5) |> 
- tabla("Vectores creados con números aleatorios a partir de la distribución de la muestra")
-
-@
-
-Validemos visualmente que nuestras distribuciones generadas con números aleatorios sigan
-las mismas distribuciones de la muestra (datos históricos)
+Para graficar no será suficiente la transformación logarítmica, así que aplicaremos una
+segunda transformación a nivel del eje $Y$. Esto nos permitirá ver de forma ordenada las
+variables con información que tienen atípicos separada por cada uno de los distintos tipos de
+status.
 
 \begin{figure}[H]
-<<fig.width=7, fig.asp=0.7>>=
-# crear gráfica de distribuciones para validar si se parecen a las originales
-map2(.x = names(distribuciones), 
-     .y = c(pal, palette_OkabeIto[7]), ~ estimar_densidad(df = distribuciones, 
-                                                          d = .x, color = .y)) |> 
- reduce(.f = `+`) +  plot_layout(ncol = 2) + plot_annotation(title = "Distribuciones", 
- subtitle = "Estimación de densidad no paramétrica")
-
+<<fig.width=7>>=
+sl %>%
+ pivot_longer(cols = where(is.numeric),
+              names_to = "variable",
+              values_to = "valor") |>
+ ggplot(aes(reorder_within(variable, valor, status, fun = median), valor)) +
+ geom_boxplot(outlier.color = "red") +
+ scale_x_reordered(name = "feature") +
+ # scale_y_log10() +
+ facet_grid(status ~ ., scales = "free") +
+ drako +
+ theme(axis.text.x  = element_text(angle = 90, vjust = 0.5, hjust = -0.01),
+       axis.title.x = element_blank()) +
+ labs(title        = "Atípicos con variables informativas",
+      subtitle     = "Escala logarítmica")
 @
-\caption{Distribuciones generadas con números aleatorios}
-   \label{fig:disrandom}
+
+\caption{Análisis de valores atípicos posterior a eliminar columnas con varianza cercana a cero}
+   \label{fig:atip}
 \end{figure}
 
+Observamos en la figura \ref{fig:atip} que hay atípicos. Aunque el tratamiento de atípicos
+puede mejorarse a través de una técnica llamada \emph{spatial sign} \citep[pag. ~71]{kuhn_applied_2013}
+es posible que se deban investigar en profundidad la razón de estos outliers.
 
+\subsection{Variables categóricas}
 
-En una tabla podemos comparar los parámetros de los valores de la muestra contra los de
-los que fueron generados de forma aleatoria para evaluar que tan diferentes son.
-
-<<comparacion>>=
-# tabla para evaluar las diferencias entre los estadísticos de la muestra y los aleatorios
-resumir(eventos_n) |> 
- bind_rows(resumir(sitios[3])) |> 
- mutate(set = "original") |> 
- bind_rows(resumir(distribuciones) |> 
- mutate(set = "random")) |> 
- relocate(set, .before = 1) |> 
- tabla("Comparación valores variables originales vs distribuciones")
-
-@
-
-En la tabla \ref{tab:comparacion} vemos que las variables que siguen una distribución
-\emph{log-normal} (\va{operación} y \va{falla}) tiene una variación en la media y la
-desviación estándar, pero los valores máximos y mínimos se mantienen iguales.
-
-\subsection{Configurar simulación}
-
- \begin{itemize}[itemsep=1ex]
-  \item \textbf{Población de sitios Tx (Q):} 150
-  \item \textbf{Fallas cuatrimestrales:} En la tabla \ref{tab:frecuencia} podemos ver que en
-  cuatro meses de evaluación, la cantidad de fallas totales fue de \textbf{68}.
-  \item \textbf{Cuatrimestres en un año:} Un año tiene 3 cuatrimestres.
-  \item \textbf{Lambda:} Tasa de fallas en un año sera de 68 fallas por la cantidad de
-  cuatrimestres, es decir, que en un año se espera que se den 204 fallas.
-  \item \textbf{Probabilidad de fallas (P):} Debido a que la cantidad de fallas que se pueden
-  presentar en un año sigue una distribución de Poisson, calcularemos de manera
-  \textbf{conservadora}, la posibilidad de que se den 150 fallas, es decir, al menos 1 falla
-  en toda la población de sitios Tx. 
-  \item \textbf{Tipo de cambio:} 7.78
- \end{itemize}
+Ahora se verá la distribución de las variables categóricas, primero a nivel de
+general y luego en función de la variable dependiente.
 
 <<>>=
-# configuración de la simulación
-poblacion_sitios_tx <- 150
-fallas_cuatrimestre <- sum(frecuencia_eventos$fallas)
-cuatrimestres <- 3
-lambda <- fallas_cuatrimestre * 3
-
-# calcular la probabilidad de que ocurran 150 fallas en un año
-prob_falla <- ppois(q = poblacion_sitios_tx, lambda, lower.tail = F)
-tipo_cambio <- 7.78
-
-@
-
-
-<<>>=
-# simulación!!
-simulacion <- distribuciones |> 
- mutate(
-  voltaje = 120,
-  amp_adi = falla - operacion,
-  kwh_adi = ((amp_adi * voltaje * duracion) / 1e3),
-  costeve = costo_kwh * kwh_adi,
-  costo_t = ((costeve * poblacion_sitios_tx * prob_falla * cuatrimestres) / tipo_cambio))
-
-@
-
-\subsection{Resultado Simulación}
-
-Aplicando el modelo matemático de la sección \nameref{sec:modeloteorico} obtenemos con
-100,000 repeticiones:
-
-<<simulacion>>=
-# imprimir resultados de la simulación
-simulacion |>
- mutate(across(where(is.numeric), round, 2)) |> 
- slice_sample(n = 9) |> 
- tabla("Muestra aleatoria de los resultados de la simulación")
-
-@
-
-En la tabla \ref{tab:simulacion} vemos los resultados de la simulación con base al modelo
-matemático establecido.
-
-<<>>=
-# reducir la escala para que sea más fácil de ver en los gráficos
-sim <- simulacion |> mutate(costo_t = costo_t/1e3)
-
+sbm <- mg |>
+ select(where(is.factor))
 @
 
 <<>>=
-# guardar en un objeto la variable resultante de la simulación
-costost <- sim$costo_t
+plot_bar(sbm, ggtheme = drako) +
+ scale_fill_OkabeIto()
+@
 
+
+\subsection{Análisis bivariado}
+
+TODO: Aquí me quede. Tengo demasiados atípicos. Debo de hacer histogramas de las variables
+cauntitativas.
+
+
+<<>>=
+columnas <- mg %>%
+ select(where(is.factor), -dia) %>%
+ names()
 @
 
 <<>>=
-# calcular media y desviacion de la variable resultante
-c(me, de) %<-% map(.x = c(1,2), ~ resumir(costost) |> select(mean, median) |> pluck(.x) |>
- round(2))
-
+columnas %>%
+ map(~  mg %>%
+  select(-tanque) |>
+  pivot_longer(cols = where(is.numeric)) %>%
+  ggplot(aes(y = .data[[.x]], x = value)) +
+  geom_boxplot(aes(fill = .data[[.x]]),
+               outlier.colour = colorx[["rojo"]]) +
+  # scale_x_log10() +
+  # scale_fill_OkabeIto() +
+  ggtitle(label = .x) +
+  theme(legend.position = "bottom",
+        legend.title = element_blank()) +
+  facet_wrap(. ~ name, scales = "free", ncol = 2))
 @
 
-<<>>=
-# quiebres para el histograma
-brk <- hist(costost, plot = F)$breaks
-@
-
-\begin{figure}[H]
-<<resultado, fig.width=7>>=
-# histograma especial con espacios en cajas
-sim |> 
- ggplot(aes(costo_t)) +
- geom_bar(width = 0.98, fill = "#56B4E9") +
- scale_x_binned(breaks = brk, labels = dol, 
-                name = "Costo en Miles de dólares [K]") +
- geom_vline(xintercept = me, linetype = "dashed", color = "red", alpha = .9) +
- scale_y_continuous(expand = c(0, 0)) + furia
-
-@
-\caption{Distribución de los costos en Miles de USD que podría haber en un año de operación si no se toman acciones}
-   \label{fig:res1}
-\end{figure}
-
-Hemod dividido entre mil la variable \va{costo\_t} para facilitar la visualización y el
-análisis.
-
-\section{Análisis Probabilístico}
-
-<<>>=
-# imprimir tabla con estadísticos de variable resultante
-resumir(costost) |> tabla("Resumen de la variable Costos totales")
-
-@
-
-En la tabla vemos que el costo promedio es de \Sexpr{me} mil dólares, pero la mediana es de
-\Sexpr{de} mil.
-
-\subsection{¿La distribución resultante es normal?}
-
-<<>>=
-# configurar prueba de normalidad exploratoria
-tipodis <- "norm"
-metodos <- c("mme", "mme", "mle")
-ajustes <- tipodis |> map2(.y = metodos, ~ fitdist(data = costost, distr = .x, method = .y))
-
-@
-
-<<>>=
-# guardar en una lista las funciones a utilizar para evaluar normalidad
-fun_prop <- list(
- den = function(f) denscomp(f), 
- qqc = function(f) qqcomp(f),
- cdf = function(f) cdfcomp(f),
- ppc = function(f) ppcomp(f))
-
-@
-
-\begin{figure}[H]
-<<fig.width=8, fig.asp=1>>=
-# graficar que tanto se ajusta la variable resultante a la normal
-par(mfrow = c(2, 2)); walk(fun_prop, exec, f = ajustes) 
-
-@
-\caption{Interpretación de resultados}
-   \label{fig:ajus}
-\end{figure}
-
-En la figura \ref{fig:ajus} vemos a nivel gráfico que la distribución se ajusta bastante
-bien a una distribución normal, aunque la media y la mediana están bastante alejadas la una
-de la otra. Discutiremos este sesgo en las secciones posteriores.
-
-\subsection{¿Existen atípicos en la distribución resultante?}
-
-\begin{figure}[H]
-<<fig.width=5>>=
-# evaluar atípicos
-sim %>% ggplot(aes(y = NULL, x = costo_t)) + geom_boxplot(outlier.color = "red") +
- labs(x = NULL, y = "Precio por región") + theme(legend.position = "none")
-
-@
-\caption{Interpretación de resultados}
-   \label{fig:out}
-\end{figure}
-
-En la figura \ref{fig:out} vemos que la variable resultante tiene muchos atípicos, por lo que
-esto podría afectar el cálculo de los intervalos de confianza.
 
 
-\subsection{¿Cuál es la probabilidad de que no se tenga ningún costo adicional?}
 
-<<>>=
-# imprimir probabilidad
-(m0 <- pnorm(0, me, de))
- m0 <- m0 |> round(2) |> as.character() |> str_c("\\%")
 
-@
 
-La probabilidad de que el impacto de las fallas de las unidades de enfriamiento en un periodo
-de un año es del \Sexpr{m0}
 
-\subsection{¿Cuál es la probabilidad de obtener un costo mayor a USD 30K en un año de
-operación?}
 
-<<>>=
-# imprimir probabilidad
-(m30 <- pnorm(30, me, de, lower.tail = F))
- m30 <- (m30 * 100) |> round(2) |> as.character() |> str_c("\\%")
 
-@
 
-La probabilidad de obtener costos en OpEx por consumo de energía eléctrica que superen los
-USD 30K al año para todos los sitios de transmisión es del \Sexpr{m30}
 
-\subsection{¿Cuál es el coeficiente de variación?}
 
-<<>>=
-# imprimir probabilidad
-(cev <- ((de/me) * 100))
- cev <- cev |> round(2) |> as.character() |> str_c("\\%")
 
-@
 
-Vemos que la variación \emph{relativa} es del \Sexpr{cev}. El riesgo es moderado
 
-\subsection{¿Cuál es el intervalo de confianza del resultado con un 95\% de probabilidad?}
 
-<<>>=
-# imprimir intervalos de confianza
-(d95 <- c(-2, 2) * de + me)
-a <- label_comma()(d95[1] * 1e3)
-b <- label_comma()(d95[2] * 1e3)
 
-@
 
-Con un nivel de confianza del 95\% podemos decir que obtendremos un resultado de entre
-\Sexpr{a} y \Sexpr{b} dólares.
