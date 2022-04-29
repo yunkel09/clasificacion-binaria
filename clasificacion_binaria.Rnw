@@ -395,6 +395,7 @@ import::from(dbplyr, in_schema)
 import::from(statistigo, coloring_font)
 import::from(formattable, color_tile)
 import::from(patchwork, plot_layout, plot_annotation)
+import::from(vip, vip)
 import::from(caret, nearZeroVar)
 import::from(parallel, detectCores, makePSOCKcluster, stopCluster)
 import::from(tidytext, reorder_within, scale_y_reordered, scale_x_reordered)
@@ -406,7 +407,8 @@ import::from(colorblindr, scale_color_OkabeIto, scale_fill_OkabeIto, palette_Oka
 import::from(GGally, ggpairs, wrap)
 import::from(DataExplorer, plot_intro, plot_bar, plot_density)
 import::from(ggstatsplot, ggbetweenstats, gghistostats, ggbarstats, ggwithinstats)
-pacman::p_load(skimr, janitor, tictoc, pins, themis, tidymodels, tidyverse)
+pacman::p_load(skimr, finetune,janitor, tictoc, pins,
+               themis, baguette, tidymodels, tidyverse)
 
 # fuentes del paquete conectigo
 cargar_fuentes()
@@ -575,14 +577,13 @@ colorx <- c(rojo = "#F4354D", amarillo = "#FCA108", verde = "#00AB40")
 theme_set(yunkel)
 
 # crear tablas latex
-tabla <- function(df, cap = "prueba") {
+tabla <- function(df, cap = "prueba", ta = NULL) {
  df %>%
   mutate(across(where(is.numeric), round, 2)) |>
   kbl(booktabs = TRUE, linesep = "", caption = cap) %>%
   kable_paper(full_width = F) %>%
-  kable_styling(latex_options = "HOLD_position", table.envir = "float")
+  kable_styling(latex_options = "HOLD_position", table.envir = "float", font_size = ta)
 }
-
 @
 
 % aquí va la portada
