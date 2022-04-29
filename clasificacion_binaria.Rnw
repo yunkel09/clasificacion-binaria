@@ -393,7 +393,6 @@ import::from(lubridate, .except = c("intersect", "setdiff", "union"))
 import::from(conectigo, conectar_msql, cargar_fuentes)
 import::from(dbplyr, in_schema)
 import::from(statistigo, coloring_font)
-import::from(skimr, skim)
 import::from(formattable, color_tile)
 import::from(patchwork, plot_layout, plot_annotation)
 import::from(caret, nearZeroVar)
@@ -403,11 +402,11 @@ import::from(doParallel, registerDoParallel)
 import::from(cowplot, .except = "stamp")
 import::from(kableExtra, .except = "group_rows")
 import::from(DataExplorer, plot_intro, plot_bar, plot_density)
-import::from(colorblindr, scale_color_OkabeIto, scale_fill_OkabeIto)
+import::from(colorblindr, scale_color_OkabeIto, scale_fill_OkabeIto, palette_OkabeIto)
 import::from(GGally, ggpairs, wrap)
 import::from(DataExplorer, plot_intro, plot_bar, plot_density)
 import::from(ggstatsplot, ggbetweenstats, gghistostats, ggbarstats, ggwithinstats)
-pacman::p_load(fst, janitor, tictoc, pins, themis, tidymodels, tidyverse)
+pacman::p_load(skimr, janitor, tictoc, pins, themis, tidymodels, tidyverse)
 
 # fuentes del paquete conectigo
 cargar_fuentes()
@@ -458,6 +457,20 @@ extraer_retina <- function(conx, siteid, fecha_inicio, fecha_fin) {
             galonaje = max(valor, na.rm = TRUE))
 }
 
+# resumir estadísticos principales
+resumir <- function(.df) {
+ my_skim <- skim_with(
+  base = NULL,
+  numeric = sfl(media   = ~ mean(., na.rm = TRUE),
+                mediana = ~ median(., na.rm = TRUE),
+                maximo  = ~ max(., na.rm = TRUE),
+                minimo  = ~ min(., na.rm = TRUE)), append = F)
+ my_skim(.df) |>
+ rename_with(~ str_replace_all(.x, "numeric\\.", "")) |>
+ as_tibble() |>
+ rename(tipo = skim_type, variable = skim_variable)
+}
+
 
 ## barra
 barra <- function(df, x) {
@@ -469,14 +482,12 @@ barra <- function(df, x) {
 	dfx %>%
 		ggplot(aes(y = {{x}}, x = n)) +
 		geom_col(fill = "#0072B2", width = 0.8) +
-		# geom_text(aes(label = str_c(n, " ", "(", percent, ")")),
-		# 			 hjust = 1.1,
-		# 			 size = 4,
-		# 			 color = "white") +
-		# 			 # fontface = "bold") +
+	 geom_text(aes(label = str_c(n, " ", "(", percent, ")")),
+                     hjust = 1.5,
+                     size = 6,
+                     color = "white") +
 		scale_x_continuous(name = NULL, expand = c(0, 0)) +
 		scale_y_discrete(name = NULL, expand = c(0, 0.5)) +
-		# coord_cartesian(clip = "off") +
 		theme_minimal_vgrid(font_family = "yano") +
 		theme(axis.text.y = element_text(size = 14),
 				plot.title = element_text(size = 22, face = "bold"))
@@ -499,6 +510,59 @@ ggplot(data = data, mapping = mapping) +
                 ...)
 }
 
+# generar gráfico de densidad
+estimar_densidad <- function(df, d, color) {
+
+	brk <- hist(df[[d]], plot = FALSE)$breaks
+	med <- mean(df[[d]])
+
+	df %>%
+	  ggplot(aes(x = .data[[d]], y = ..density..)) +
+	  geom_histogram(fill   = color,
+	                 colour = "black",
+	                 size   = .2,
+	                 breaks = brk) +
+	  scale_x_log10() +
+	  geom_density(size = 1) +
+	  geom_vline(xintercept = med,
+	             linetype = "dashed",
+	             color = "red",
+	             alpha = 0.5)
+}
+
+# crear qq-plots
+qpl <- function(df, var_y, rel) {
+ df %>%
+  ggplot(aes(sample = .data[[var_y]])) +
+  qq$geom_qq_band(bandType = "pointwise",
+                  distribution = "norm",
+                  alpha = 0.5) +
+  qq$stat_qq_line() +
+  qq$stat_qq_point(size   = 2,
+                   shape  = 21,
+                   alpha  = 0.8,
+                   fill   = rel,
+                   colour = rel) +
+  labs(x = "Theoretical Quantiles", y = "Sample Quantiles") +
+  ggtitle(str_to_title(var_y)) +
+  theme(plot.title = element_text(size = 16))
+}
+
+# aplicar pruebas de normalidad
+probar_normalidad <- function(vector) {
+	funciones %>%
+		map(exec, x = vector) %>%
+		map_df(tidy) %>%
+		select(method, p_value = p.value) %>%
+		arrange(desc(p_value))
+}
+
+
+# detener paralelismo
+unregister <- function() {
+  env <- foreach:::.foreachGlobals
+  rm(list=ls(name=env), pos=env)
+}
 
 # scales facilita el formato en los gráficos
 porcentaje <- label_percent(decimal.mark = ".", suffix = "%", accuracy = 0.1)

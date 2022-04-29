@@ -28,7 +28,8 @@ tanque_baterias <- atr_raw |>
 mg_clean <- raw_mg |>
  mutate(
   status = if_else(status >= 1, "down", "up"),
-  status = factor(status, levels = c("up","down")),
+  # status = factor(status, levels = c("up","down")),  # original
+  status = factor(status, levels = c("down","up")),
   across(c("duracion", "working"), ~ .x * 60),
   across(inicio:fin, ymd_hms),
   across(arranco, as.factor),
@@ -40,26 +41,26 @@ mg_clean <- raw_mg |>
 <<>>=
 # la fecha de inicio y de fin sirven para poder extraer el galonaje que tenía el MG al
 # momento de la interrupción del servicio.
-mg_set <- mg_clean |>
- select(siteid,
-        fecha_inicio = inicio,
-        fecha_fin    = fin)
+# mg_set <- mg_clean |>
+#  select(siteid,
+#         fecha_inicio = inicio,
+#         fecha_fin    = fin)
 @
 
 <<eval=FALSE>>=
 # debido a que el proceso de extraer los datos de la BD es muy tardado, este chunk no
 # lo corremos, sino solo una vez para luego guardar los datos en un formato binario.
-galonaje2 <- pmap_dfr(mg_set, ~ extraer_retina(conx = con,
-                                              siteid = ..1,
-                                              fecha_inicio = ..2,
-                                              fecha_fin = ..3) |>
-      collect()) |>
- mutate(across(contains("powercut"), ymd_hms))
+# galonaje2 <- pmap_dfr(mg_set, ~ extraer_retina(conx = con,
+#                                               siteid = ..1,
+#                                               fecha_inicio = ..2,
+#                                               fecha_fin = ..3) |>
+#       collect()) |>
+#  mutate(across(contains("powercut"), ymd_hms))
 @
 
 <<>>=
-galonaje <- read_fst("./galonaje.fst") |> as_tibble() |>
- rename(inicio = inicio_powercut, fin = fin_powercut)
+# galonaje <- read_fst("./galonaje.fst") |> as_tibble() |>
+#  rename(inicio = inicio_powercut, fin = fin_powercut)
 @
 
 <<>>=
@@ -76,6 +77,18 @@ mg <- mg_clean |>
 <<>>=
 mg %>% glimpse()
 @
+
+El tamaño del dataset es de 1902 observaciones con 11 features y una variable respuesta.
+
+\begin{figure}[H]
+<<fig.width=7>>=
+plot_intro(mg, ggtheme = yunkel, title = "Resumen")
+@
+\caption{Información básica del dataset}
+   \label{fig:info}
+\end{figure}
+
+Se ve que no hay valores atípicos y que la mayoría de las features son discretas.
 
 \subsection{Variable dependiente}
 
@@ -98,6 +111,21 @@ En el gráfico \ref{fig:desbalance} se observa que la variable no está equilibr
 lo que pasará es que nuestro modelo aprenderá de manera muy eficaz sobre cómo predecir el
 caso negativo, es decir, cuando un sitio no se cae}
 
+\subsection{Medidas repetidas}
+
+<<microcortes>>=
+mg %>%
+ mutate(ano = year(inicio)) |>
+ janitor::get_dupes(siteid, dia, mes, ano) |>
+ filter(siteid == "GUA025", dia == 25, mes == 8, ano == 2020) |>
+ select(siteid, inicio, fin, status, duracion, working) |>
+ tabla(cap = "Ejemplo de microcortes en el servicio de energía eléctrica")
+@
+
+En la tabla \ref{tab:microcortes} se aprecia que hay casos en los que en un sitio, en un
+mismo día, se pueden presentar hasta 9 apagones.  La mayoría de poca duración, pero incluso
+es posible que el sitio pase sin energía hasta 33 días.
+
 \subsection{Atípicos}
 
 <<>>=
@@ -118,10 +146,6 @@ sl <- mg %>%
  select(all_of(var_ok)) %>%
  select(status, duracion, working, tanque) |>
  mutate(across(where(is.numeric), ~ log(.x + 1)))
-@
-
-<<>>=
-slice_sample(sl, n = 5) |> tabla(cap = "Visualización de atípicos")
 @
 
 Para graficar no será suficiente la transformación logarítmica, así que aplicaremos una
@@ -155,6 +179,56 @@ Observamos en la figura \ref{fig:atip} que hay atípicos. Aunque el tratamiento 
 puede mejorarse a través de una técnica llamada \emph{spatial sign} \citep[pag. ~71]{kuhn_applied_2013}
 es posible que se deban investigar en profundidad la razón de estos outliers.
 
+\subsection{Variables numéricas}
+
+<<>>=
+mg_n <- mg %>% select(where(is.numeric), -tanque)
+@
+
+\begin{figure}[H]
+<<fig.width=6>>=
+ mg_n |>
+ pivot_longer(cols = everything()) |>
+ ggplot(aes(x = value, y = ..density..)) +
+ geom_histogram(fill = "#56B4E9", size = .2, color = "white") +
+ geom_density(size = 1) +
+ scale_x_log10(name = "Duración en minutos") +
+ facet_grid(. ~ name, scales = "free") +
+ geom_vline(aes(xintercept = mean(value)), color = "red", linetype = "dashed") +
+ geom_vline(aes(xintercept = median(value)), color = "darkgreen", linetype = "dashed") +
+ labs(title = "Distribución Duración y Working") +
+ drako
+@
+\caption{Análisis de la distribución de las variables continuas}
+   \label{fig:cont}
+\end{figure}
+
+
+\textbf{\hl{La presencia de valores atípicos será determinante en la selección de los
+modelos a utilizar.}}
+
+
+Se ve en la gráfica \ref{fig:cont} que ambos features tienen un sesgo muy pronunciado hacia
+la derecha. Lo que esperaríamos ver es una mayor coincidencia entre la duración de la
+interrupción de la energía eléctrica y el tiempo que el motor estuvo trabajando, sin embargo,
+vemos casos en que el motor estuvo trabajando más de 1000 minutos (16 horas) seguidas.
+
+\begin{figure}[H]
+<<fig.width=7>>=
+mg_n %>%
+ mutate(across(everything(), ~ log(.x + 2))) |>
+ ggpairs(data = _, lower = list(continuous = loess_lm),
+             upper = list(continuous = wrap("cor", size = 5))) + drako
+@
+\caption{Interpretación de resultados}
+   \label{fig:biv}
+\end{figure}
+
+En la figura \ref{fig:biv}, a como se esperaba la relación entre el tiempo que duró la
+interrupción y el tiempo que estuvo trabajando el motor es lineal en la mayoría de los casos.
+La línea diagonal principal sugiere que hay muchos casos en donde la duración de la
+interrupción coincide con la duración del tiempo que trabajó el motor.
+
 \subsection{Variables categóricas}
 
 Ahora se verá la distribución de las variables categóricas, primero a nivel de
@@ -165,40 +239,750 @@ sbm <- mg |>
  select(where(is.factor))
 @
 
+
 <<>>=
-plot_bar(sbm, ggtheme = drako) +
- scale_fill_OkabeIto()
+meses <- month.name %>% enframe() %>% deframe()
+@
+
+\begin{figure}[H]
+<<fig.width=7>>=
+sbm |>
+ mutate(across(mes, recode, !!!meses)) |>
+ ggplot(aes(y = fct_rev(fct_infreq(mes)))) +
+ geom_bar(aes(fill = arranco)) +
+ ylab("Mes") +
+ facet_grid(cols = vars(status), scale = "free") +
+ scale_fill_OkabeIto() +
+ drako
+@
+\caption{Caída de sitios por mes considerando si el MG funcionó o no}
+   \label{fig:caidas}
+\end{figure}
+
+Se ve en la gráfica \ref{fig:caidas} que la mayoría de casos en los que hubo caída de
+servicios fue en los meses de febrero, mayo y junio. No se puede decir que la mayoría de
+los eventos de caída en febrero se debieron principalmente a que el MG no entró a funcionar.
+Lo mismo para el resto de meses.
+
+\section{Modelado}
+
+\subsection{Split}
+
+<<>>=
+mgt <- mg |>
+ mutate(across(c("dia", "mes", "tipo_bateria", "mtto", "arranco"), as.integer)) |>
+ select(-c(siteid:fin))
+@
+
+<<>>=
+set.seed(2022)
+mg_split <- initial_split(data = mgt, strata = status, prop = 0.8)
+train    <- training(mg_split)
+test     <- testing(mg_split)
+@
+
+<<>>=
+mg_valid <- validation_split(train, prop = .8, strata = status)
+@
+
+<<>>=
+particion <- validation_split(train, prop = 0.7, strata = status)
+mg_train <- particion$splits[[1]] |> analysis()
+mg_valid <- particion$splits[[1]] |> assessment()
+@
+
+<<>>=
+split_df <- tibble(
+  dataset = c("dataset_original", "train", "test", "mg_train", "mg_valid"),
+  size  = c(nrow(mg), nrow(train), nrow(test), nrow(mg_train), nrow(mg_valid)))
+@
+
+<<>>=
+split_df |>
+ tabla(cap = "Data Spending")
+@
+
+\subsection{Cross-Validación}
+
+<<>>=
+(mg_folds <- vfold_cv(mg_train, v = 10, repeats = 5, strata = status))
+@
+
+\subsubsection{Motores}
+
+<<>>=
+svm_l_kernlab <- svm_linear(cost = tune()) %>%
+	set_mode("classification") %>%
+	set_engine("kernlab")
 @
 
 
-\subsection{Análisis bivariado}
-
-TODO: Aquí me quede. Tengo demasiados atípicos. Debo de hacer histogramas de las variables
-cauntitativas.
-
-
 <<>>=
-columnas <- mg %>%
- select(where(is.factor), -dia) %>%
- names()
+rf_rec <- rand_forest(mtry  = tune(),
+                      min_n = tune(),
+                      trees = 1000) %>%
+    set_engine("ranger", oob.error = TRUE) %>%
+    set_mode("classification")
 @
 
 <<>>=
-columnas %>%
- map(~  mg %>%
-  select(-tanque) |>
-  pivot_longer(cols = where(is.numeric)) %>%
-  ggplot(aes(y = .data[[.x]], x = value)) +
-  geom_boxplot(aes(fill = .data[[.x]]),
-               outlier.colour = colorx[["rojo"]]) +
-  # scale_x_log10() +
-  # scale_fill_OkabeIto() +
-  ggtitle(label = .x) +
-  theme(legend.position = "bottom",
-        legend.title = element_blank()) +
-  facet_wrap(. ~ name, scales = "free", ncol = 2))
+glm_lre <- logistic_reg() |>
+ set_engine("glm") |>
+ set_mode("classification")
 @
 
+
+\subsection{Preprocesamiento}
+
+Crearemos varias recetas para poder probar con los distintos métodos que ayudan
+a corregir el desequilibrio entre las distintas clases.
+
+Lo que haremos en general será:
+
+-   Balancear los datos con distintos métodos.
+-   Remover variables que tengan cero varianza o varianza próxima a cero.
+-   Centrar y escalar
+-   Solo en una receta aplicaremos tratamiento a los atípicos.
+
+Antes de realizar este procedimiento, validemos cuantas variables quedarían
+después de remover las variables tienen varianza cero o próxima a cero.
+
+\subsubsection{SMOTE}
+
+<<>>=
+receta_smote <- recipe(formula = status ~ ., data = mg_train) %>%
+ step_nzv(all_predictors()) %>%
+ step_normalize(all_numeric()) |>
+ step_smote(status, skip = TRUE)
+@
+
+<<>>=
+receta_smote %>%
+	prep() %>%
+	juice() %>%
+	slice_sample(n = 4)
+@
+
+<<>>=
+receta_smote %>%
+	prep() %>%
+	juice() %>%
+	barra(status) + labs("Clasificación Balanceada")
+@
+
+
+<<>>=
+receta_smote_outliers <- receta_smote %>%
+  step_spatialsign(all_predictors())
+@
+
+\subsection{Workflow}
+
+Agregaremos las recetas y los modelos a una lista nombrada para luego realizar
+el tuning de hiperparámetros en una cuadrícula de 20 valores.
+
+<<>>=
+preprocesadores <- list(smote_simple  = receta_smote,
+						smote_outlier = receta_smote_outliers)
+@
+
+<<>>=
+preprocesadores %>%
+	map(~ prep(.) %>%
+		 juice() %>%
+		 nrow()) %>%
+	enframe() %>%
+	unnest(value) %>%
+	arrange(desc(value)) %>%
+	tabla(cap = "Cantidad de observaciones restantes")
+@
+
+Con base a la tabla \@ref(tab:observaciones) vemos que el algoritmo de
+**submuestreo resulta en menos observaciones** que los restantes tres,
+pudiendo significar esto que hay perdida de información.
+
+
+<<>>=
+modelos <- list(rf            = rf_rec,
+                svm_l_kernlab = svm_l_kernlab,
+                glm_logistreg = glm_lre)
+@
+
+\subsection{Flujo}
+
+Esto es similar a crear una rejilla con la función de base `expand.grid()`. Se
+realiza una combinación de todas las recetas con todos los modelos al establecer
+el parámetro `cross = TRUE`.
+
+Esto solo es posible debido a que los modelos requieren
+prácticamente los mismos pasos de preprocesamiento, aunque algunos autores
+indican decorrelacionar predictores podría no ayudar a mejorar el desempeño, pero si a
+mejorar la puntuación en la estimación de la varianza.
+
+<<>>=
+mg_workflow <- workflow_set(preproc = preprocesadores,
+							  models  = modelos,
+							  cross   = TRUE)
+@
+
+<<>>=
+mg_workflow
+@
+
+Tenemos ahora un objeto virgen (sin ajustar) que contiene todas las
+combinaciones de recetas y modelos.
+
+\subsection{Cuadrícula}
+
+Con la función `control_grid()` lo que haremos será retener los modelos y
+recetas ajustados. Además, cuando establecemos la opción `save_pred = TRUE`
+conservaremos las predicciones del conjunto de evaluación y podremos acceder a
+ellas mediante `collect_predictions()` .
+
+
+<<>>=
+grid_ctrl <- control_grid(
+      save_pred     = TRUE,
+      parallel_over = "everything",
+      save_workflow = TRUE)
+@
+
+\subsection{Métricas}
+
+Antes definamos el set de métricas para evaluar el modelo. En este caso,
+adicional a la precisión general, el ROC_AUC, y el estadístico *kappa* (el cual
+es un poco controversial) agregaremos la especificidad ya que con base a
+
+Debido a que el motor de kernlab y glm tienen la capacidad de generar predicciones
+continuas de tipo probabilidad, será posible combinar predicciones de clase
+con estas últimas.
+
+<<>>=
+mset <- metric_set(roc_auc, accuracy, kap, specificity, sensitivity)
+@
+
+<<>>=
+all_cores <- detectCores(logical = FALSE)
+clusterpr <- makePSOCKcluster(all_cores)
+registerDoParallel(clusterpr)
+set.seed(2022)
+@
+
+A continuación realizamos el ajuste de modelos y recetas, definidas en el objeto
+mg_workflow, utilizando los remuestreos, el conjunto de métricas y una
+cuadrícula de tamaño 20.
+
+<<>>=
+# corrida manual
+ruta <- fs::path_wd("modelos")
+tablero <- board_folder(path = ruta)
+
+# corrida en knit
+# tablero <- board_folder(path = "./modelos")
+@
+
+
+
+<<>>=
+# 3.94 minutos
+tic()
+tune_res <- mg_workflow %>%
+	workflow_map(fn = "tune_grid",
+				verbose   = TRUE,
+				resamples = mg_folds,
+				control   = grid_ctrl,
+				seed      = 2022,
+				metrics   = mset,
+				grid      = 20)
+toc()
+@
+
+<<>>=
+stopCluster(clusterpr)
+unregister()
+@
+
+<<>>=
+pin_write(board = tablero,
+			 x     = tune_res,
+			 name  = "tune_res",
+			 type  = "rds",
+			 title = "modelos_arboles",
+			 description = "nuevos_modelos")
+@
+
+<<>>=
+tune_res
+@
+
+
+<<>>=
+(tm <- nrow(collect_metrics(tune_res, summarize = FALSE)))
+@
+
+<<>>=
+tune_rank <- tune_res %>%
+	rank_results(select_best = TRUE, rank_metric = "sensitivity") %>%
+	select(modelo = wflow_id, .metric, mean, rank) %>%
+	pivot_wider(names_from = .metric, values_from = mean) %>%
+	rename(kappa = kap) %>%
+	relocate(sensitivity, .after = "rank")
+@
+
+<<>>=
+tune_rank
+@
+
+
+<<>>=
+autoplot(tune_res, select_best = TRUE) + drako
+@
+
+En la figura vemos las combinaciones de
+los mejores modelos con diferentes motores y algoritmos de balanceo. La
+especificidad es la proporción de ceros estimados como ceros
+
+Seleccionemos los mejores modelos de cada tipo, considerando el recall (sensitivity) como
+el principal, seguido de la precisión, kappa y luego el resto.
+
+Seleccionaremos el top 3 de mejores modelos que claramente no se vean
+sobre-ajustados. Un criterio podría ser buscar un buen balance entre especificidad y
+recall.
+
+<<>>=
+(best <- tune_rank %>%
+	slice_max(order_by = sensitivity, n = 3) %>%
+	pull(modelo) %>%
+	set_names(.))
+@
+
+<<>>=
+metricas_train <- tune_rank %>%
+	filter(modelo %in% best)
+@
+
+
+Es importante revisar el orden de los niveles en la variable respuesta, ya que
+al momento de calcular el AUC debemos especificar que evento es el que queremos
+indicar.
+
+<<>>=
+contrasts(mg_train$status)
+@
+
+<<>>=
+roc_kear <- function(top_models, wflow, verdad, evto_pred, nivel = "second") {
+
+	# tomar en cuenta que `collect_predictions()` puede sumarizar los diversos
+	# resultados sobre las predicciones replicadas fuera de la muestra, es decir,
+	# los resultados se promedian sobre predicciones repetidas
+	.datos <- top_models %>%
+		imap_dfr(~ {{ wflow }} %>% extract_workflow_set_result(id = .x) %>%
+		collect_predictions(), .id = "modelo")
+
+
+	# calcular el área bajo la curva para cada modelo
+	auc <- .datos %>%
+		group_by(modelo) %>%
+		roc_auc({{ verdad }}, {{ evto_pred }}, event_level = nivel) %>%
+		select(modelo, auc = .estimate) %>%
+		mutate(mo = str_extract(modelo, "glm|svm|outlier_rf|simple_rf"),
+		       por = percent_format(accuracy = 0.01)(auc),
+		 .keep = "used") %>%
+		unite("nombre", c(mo, por), sep = ": ")
+
+	# graficar ROC
+	.datos %>%
+		group_by(modelo) %>%
+		roc_curve({{ verdad }}, {{ evto_pred }}, event_level = nivel) %>%
+		ggplot(aes(x = 1 - specificity, y = sensitivity, color = modelo)) +
+		geom_line(size = 1, alpha = 0.5) +
+		geom_abline(lty   = 2,
+				alpha = 0.5,
+				color = "gray50",
+				size  = 1.2) +
+		annotate("text",
+					x = 0.35,
+					y = 0.70,
+					label = auc$nombre[[1]],
+					size  = 5) +
+		annotate("text",
+					x = 0.35,
+					y = 0.65,
+					label = auc$nombre[[2]],
+					size  = 5) +
+	 annotate("text",
+					x = 0.35,
+					y = 0.60,
+					label = auc$nombre[[3]],
+					size  = 5) +
+		drako + theme(legend.position = c(0.5, 0.1)) +
+		labs(title = "Datos de entrenamiento")
+
+}
+@
+
+<<>>=
+roc_train <- roc_kear(
+	top_models = best,
+	wflow      = tune_res,
+	verdad     = status,
+	evto_pred  = .pred_down,
+	nivel      = "first")
+@
+
+<<>>=
+roc_train
+@
+
+En la figura \@ref(fig:roc) estamos evaluando la tasa de verdaderos positivos
+del evento down.
+
+Guardemos nuestros mejores modelos de cada motor en una lista
+
+<<>>=
+(lista_mejores <- best %>%
+	map(~ tune_res %>% extract_workflow_set_result(id = .x) %>%
+					       select_best(metric = "sensitivity")))
+@
+
+
+Al tenerlos en una lista nos permitirá realizar iteraciones sobre los mismos
+para posteriormente validar resultados con el set de pruebas.
+
+\subsection{Hiperparámetros}
+
+Habiendo seleccionado los mejores modelos procederemos a
+visualizar la cuadrícula de hiperparámetros que se ajustaron para encontrar los
+valores óptimos.
+
+Solo podremos ver los hiperparámetros para aquellos modelos a los que se le realizó `tune()`,
+en el caso de regresión logística, este no tuvo, por lo que no es posible mostrar esta parte.
+
+\subsection{Evolución}
+
+<<>>=
+grf <- best |>
+ imap(~ autoplot(tune_res, select_best = TRUE, id = .x) +
+	drako + labs(title = .y))
+@
+
+<<>>=
+grf[[1]]
+@
+
+
+En la figura \@ref(fig:knn-cost) vemos los diferentes valores de los hiperparámetros
+para este modelo con ajuste de desbalance por submuestreo. Se observan las
+diferentes combinaciones de $k$ con las distintas funciones de distancia. Vemos
+a simple vista que para una máxima especificidad tenemos una función
+`r coloring_font("**inv**", "#A24000")` y 9 vecinos.
+
+<<>>=
+grf[[2]]
+@
+
+emos en la gráfica \@ref(fig:svm-cost) como evolucionan las métricas establecidas en
+para cada valor del costo $C$ Entre más grande el grado el límite de
+decisión será más flexible.
+
+\subsection{Evaluación}
+
+Posterior a esto haremos lo siguiente:
+
+1. Extraer los modelos seleccionados del workflow llamado
+`r coloring_font("**tune_res**", "#A24000")`
+utilizando la función `extract_workflow()`. Recordemos que un workflow es un
+combinación de receta de preprocesamiento en conjunto con un motor (modelo) a
+utilizar. Los workflows seleccionado serán aquellos que con base a métricas
+revisadas en el paso anterior se consideran óptimos.
+
+2. Con la función `finalize_workflow()` lo que haremos será decirle al workflow
+seleccionado que usaremos los modelos ajustados con datos de entrenamiento
+que contiene los mejores parámetros numéricos encontrados a través del tuning
+usando CV.
+
+3. Con `last_fit()` realizaremos el ajuste con los datos de validación usando
+los modelos previamente seleccionados. Debemos asegurarnos de definir el set
+de métricas que deseamos comprobar, pudiendo agregar nuevas métricas. En este
+caso utilizaremos las previamente definidas.
+
+<<>>=
+validation_result_list <- map2(.x = best, .y = lista_mejores, ~ tune_res %>%
+	extract_workflow(id = .x) %>%
+	finalize_workflow(.y) %>%
+	last_fit(split = particion$splits[[1]], metrics = mset))
+@
+
+En la iteración por pares con `map2()` hacemos que el primer modelo que se
+encuentra en el objeto `r coloring_font("**best**", "#A24000")` se finalice
+con el primer modelo contenido en `r coloring_font("**lista_mejores**", "#A24000")`.
+Esta operación garantiza que se realicen los ajustes de los modelos óptimos
+seleccionados al conjunto de validación.
+
+<<>>=
+validation_result_list
+@
+
+En esta lista vemos los resultados de los modelos seleccionados ajustados a los
+datos de validación.
+
+4. Haciendo uso de `collect_metrics()` podemos ver las métricas para el conjunto
+de prueba
+
+Guardemos esto para una comparación posterior.
+
+<<>>=
+metricas_validation <- validation_result_list %>%
+	map_dfr(~ collect_metrics(.x), .id = "modelo") %>%
+	pivot_wider(names_from = .metric, values_from = .estimate) %>%
+	select(-c(.estimator:.config)) %>%
+	rename(kappa = kap) %>%
+	relocate(sensitivity, roc_auc, kappa, .after = modelo)
+@
+
+<<>>=
+metricas_validation
+@
+
+5. Con `collect_predictions()` podemos ver cómo podemos esperar que este modelo
+funcione con nuevos datos.
+
+Primero calculemos el AUC utilizando la función `roc_auc()` en la que definimos
+que el evento verdad (*truth*) es la columna *type* y la estimación de
+probabilidad numérica es  `r coloring_font("**.pred_down**", "#A24000")`
+
+<<>>=
+(auc_validation <- validation_result_list %>%
+	map_dfr(~ collect_predictions(.x), .id = "modelo") %>%
+	group_by(modelo) %>%
+	roc_auc(status, .pred_down, event_level = "first") %>%
+	select(modelo, auc = .estimate) %>%
+	mutate(mo = str_extract(modelo, "glm|svm|outlier_rf|simple_rf"),
+		    por = percent_format(accuracy = 0.0100000000)(auc),
+			.keep = "used") %>%
+	unite("nombre", c(mo, por), sep = ": "))
+@
+
+
+Con el AUC calculado para cada modelo, ya podemos graficar.
+
+<<>>=
+roc_validation <- validation_result_list %>%
+	map_dfr(~ collect_predictions(.x), .id = "modelo") %>%
+	group_by(modelo) %>%
+    roc_curve(status, .pred_down, event_level = "first") %>%
+	ggplot(aes(x = 1 - specificity, y = sensitivity, color = modelo)) +
+		geom_line(size = 1, alpha = 0.5) +
+		geom_abline(lty   = 2,
+				alpha = 0.5,
+				color = "gray50",
+				size  = 1.2) +
+ annotate("text",
+					x = 0.35,
+					y = 0.70,
+					label = auc_validation$nombre[[1]],
+					size  = 5) +
+		annotate("text",
+					x = 0.35,
+					y = 0.65,
+					label = auc_validation$nombre[[2]],
+					size  = 5) +
+	 annotate("text",
+					x = 0.35,
+					y = 0.60,
+					label = auc_validation$nombre[[3]],
+					size  = 5) +
+		drako + theme(legend.position = c(0.5, 0.1)) +
+		labs(title = "Datos de validación")
+
+@
+
+
+<<>>=
+list(roc_train, roc_validation) %>%
+	reduce(.f = `+`) +
+	plot_layout(ncol = 2) +
+   plot_annotation(title = "Diferencias entre AUC para conjuntos de entrenamiento y validación")
+@
+
+En el gráfico \@ref(fig:idf) vemos que el AUC del modelo SVM en el conjunto de
+validación es más alto. Vemos que las métricas del conjunto de validación son
+**ligeramente** superiores a las del conjunto de entrenamiento.
+
+\subsection{Métricas}
+
+Analicemos de forma más numéricas las diferencias entre las métricas obtenidas
+con los datos de entrenamiento versus las obtenidas con los datos de prueba.
+
+<<>>=
+comparacion <- metricas_train %>%
+	mutate(datos = "entrenamiento", .after = modelo) %>%
+	select(-rank) %>%
+	bind_rows(metricas_validation %>%
+	mutate(datos = "validacion", .after = modelo))
+@
+
+<<>>=
+comparacion
+@
+
+En la tabla \@ref(tab:comp) vemos en verde el que obtuvo mayor valor con
+respecto a la métrica de esa columna.  En tres de las cinco métricas el
+modelo `r coloring_font("**smote_simple_svm_l_kernlab**", "#A24000")` del conjunto de
+validación obtuvo mejores resultados.
+
+<<>>=
+mejor_modelo <- comparacion |>
+ filter(datos == "validacion") |>
+ slice_max(order_by = sensitivity) |>
+ pull(modelo)
+@
+
+Veamos una forma diferente de analizar estas métricas:
+
+<<>>=
+metricas_train %>%
+	select(-rank) %>%
+	pivot_longer(cols = specificity:sensitivity,
+			names_to = "metrica",
+			values_to = "train") %>%
+	bind_cols(metricas_validation %>%
+				 	pivot_longer(cols = specificity:sensitivity,
+					 names_to = "metrica",
+					 values_to = "validacion") %>%
+				 	select(validacion)) %>%
+	mutate(delta = validacion - train,
+		diff_porcentual = percent_format(accuracy = 0.01)(delta)) |>
+ slice(1:9)
+	tabla(cap = "Métricas de Train contra test")
+@
+
+\section{Selección del Modelo}
+
+Una vez que tenemos el modelo correcto, lo vamos a probar con los datos de prueba
+
+<<>>=
+test_result_list <- map2(.x = best[mejor_modelo], .y = lista_mejores[mejor_modelo], ~ tune_res %>%
+	extract_workflow(id = .x) %>%
+	finalize_workflow(.y) %>%
+	last_fit(split = mg_split, metrics = mset))
+@
+
+<<>>=
+test_result_list
+@
+
+4. Haciendo uso de `collect_metrics()` podemos ver las métricas para el conjunto
+de prueba
+
+Guardemos esto para una comparación posterior.
+
+<<>>=
+metricas_test <- test_result_list %>%
+	map_dfr(~ collect_metrics(.x), .id = "modelo") %>%
+	pivot_wider(names_from = .metric, values_from = .estimate) %>%
+	select(-c(.estimator:.config)) %>%
+	rename(kappa = kap) %>%
+	relocate(sensitivity, roc_auc, kappa, .after = modelo)
+@
+
+<<>>=
+metricas_test
+@
+
+5. Con `collect_predictions()` podemos ver cómo podemos esperar que este modelo
+funcione con nuevos datos.
+
+Primero calculemos el AUC utilizando la función `roc_auc()` en la que definimos
+que el evento verdad (*truth*) es la columna *type* y la estimación de
+probabilidad numérica es  `r coloring_font("**.pred_down**", "#A24000")`
+
+<<>>=
+(auc_test <- test_result_list %>%
+	map_dfr(~ collect_predictions(.x), .id = "modelo") %>%
+	group_by(modelo) %>%
+	roc_auc(status, .pred_down, event_level = "first") %>%
+	select(modelo, auc = .estimate) %>%
+	mutate(mo = str_extract(modelo, "glm|svm|outlier_rf|simple_rf"),
+		    por = percent_format(accuracy = 0.0100000000)(auc),
+			.keep = "used") %>%
+	unite("nombre", c(mo, por), sep = ": "))
+@
+
+Con el AUC calculado para cada modelo, ya podemos graficar.
+
+<<>>=
+roc_test <- test_result_list %>%
+	map_dfr(~ collect_predictions(.x), .id = "modelo") %>%
+	group_by(modelo) %>%
+    roc_curve(status, .pred_down, event_level = "first") %>%
+	ggplot(aes(x = 1 - specificity, y = sensitivity, color = modelo)) +
+		geom_line(size = 1, alpha = 0.5) +
+		geom_abline(lty   = 2,
+				alpha = 0.5,
+				color = "gray50",
+				size  = 1.2) +
+ annotate("text",
+					x = 0.35,
+					y = 0.70,
+					label = auc_test$nombre[[1]],
+					size  = 5) +
+		drako + theme(legend.position = c(0.5, 0.1)) +
+		labs(title = "Datos de prueba")
+@
+
+
+<<>>=
+list(roc_train, roc_validation, roc_test) %>%
+	reduce(.f = `+`) +
+	plot_layout(ncol = 3) +
+   plot_annotation(title = "AUC para conjuntos de entrenamiento, validación y prueba")
+@
+
+En el gráfico \@ref(fig:idf) vemos que el AUC del modelo SVM en el conjunto de
+validación es más alto. Vemos que las métricas del conjunto de validación son
+**ligeramente** superiores a las del conjunto de entrenamiento.
+
+### Métricas
+
+Analicemos de forma más numéricas las diferencias entre las métricas obtenidas
+con los datos de entrenamiento versus las obtenidas con los datos de prueba.
+
+<<>>=
+comparacionx <- metricas_train %>%
+	mutate(datos = "entrenamiento", .after = modelo) %>%
+ filter(modelo == mejor_modelo) |>
+	bind_rows(metricas_validation %>%
+	 mutate(datos = "validacion", .after = modelo) |>
+	  filter(modelo == "smote_simple_rf")) |>
+	bind_rows(metricas_test %>%
+	mutate(datos = "prueba", .after = modelo)) |>
+ select(-rank)
+@
+
+<<>>=
+comparacionx
+@
+
+<<>>=
+write_fst(x = comparacionx, path = "../proyecto_final/primeras_metricas.fst")
+primera_comparacion <- read_fst(path = "../proyecto_final/primeras_metricas.fst") |>
+ as_tibble()
+@
+
+\subsection{Matriz de confusión}
+
+<<>>=
+test_result_list[[1]] |>
+ collect_predictions() |>
+ conf_mat(status, .pred_class) |>
+ autoplot(type = "heatmap")
+@
+
+
+
+\section{Modelo definitivo}
 
 
 

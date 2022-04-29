@@ -52,7 +52,7 @@ raw_mg %>%
 @
 
 <<include=FALSE>>=
-galonaje <- read_fst("galonaje.fst") |> as_tibble()
+# galonaje <- read_fst("galonaje.fst") |> as_tibble()
 @
 
 \section{Feature selection}
